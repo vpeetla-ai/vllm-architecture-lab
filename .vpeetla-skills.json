@@ -1,0 +1,7 @@
+{
+  "issue_tracker": "github",
+  "docs_path": "docs",
+  "stack_layer": "inference",
+  "gateway_required": false,
+  "skills_source": "https://github.com/vpeetla-ai/vpeetla-ai-skills"
+}

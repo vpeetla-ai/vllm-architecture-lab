@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>vLLM Architecture — High-Throughput Inference</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  /* Palette — silicon wafer dark + electric neon accents */
+  --bg:      #050509;
+  --s1:      #08080F;
+  --s2:      #0C0C16;
+  --s3:      #10101E;
+  --border:  #151528;
+  --border2: #1E1E38;
+
+  /* Signal colors */
+  --gpu:     #00FFCC;   /* GPU / hardware — teal-mint */
+  --kv:      #7B5EA7;   /* KV cache — deep purple */
+  --kv2:     #B08FFF;   /* KV cache light */
+  --batch:   #FF8C42;   /* Batching — amber-orange */
+  --mem:     #4FACDE;   /* Memory mgmt — steel blue */
+  --sched:   #FF3CAC;   /* Scheduler — hot pink */
+  --api:     #39FF14;   /* API layer — neon green */
+  --tensor:  #FFD23F;   /* Tensor parallel — gold */
+  --quant:   #FF6B6B;   /* Quantization — coral */
+
+  --text:    #C8CCE8;
+  --muted:   #484870;
+  --muted2:  #282848;
+
+  --mono:    'IBM Plex Mono', monospace;
+  --sans:    'IBM Plex Sans', system-ui, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* ── Header ── */
+.hdr {
+  background: var(--s1);
+  border-bottom: 1px solid var(--border2);
+  padding: 0 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 56px;
+  position: sticky; top: 0; z-index: 200;
+  backdrop-filter: blur(12px);
+}
+.hdr-left { display: flex; align-items: center; gap: 14px; }
+.hdr-badge {
+  font-family: var(--mono); font-size: 0.7rem; font-weight: 700;
+  background: linear-gradient(135deg, var(--kv), var(--gpu));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  letter-spacing: 0.04em;
+}
+.hdr-title { font-size: 0.92rem; font-weight: 700; color: var(--text); }
+.hdr-sub { font-size: 0.6rem; color: var(--muted); font-family: var(--mono); }
+.tabs { display: flex; gap: 1px; }
+.tab {
+  background: none; border: none; cursor: pointer;
+  padding: 8px 16px; font-size: 0.72rem; font-weight: 600;
+  color: var(--muted); font-family: var(--sans); letter-spacing: 0.03em;
+  border-bottom: 2px solid transparent; transition: all 0.15s;
+}
+.tab.on { color: var(--text); border-bottom-color: var(--gpu); }
+
+/* ── Views ── */
+.view { display: none; padding: 24px; min-height: calc(100vh - 56px); }
+.view.on { display: block; }
+
+/* ══════════════════════════════════════════
+   ARCHITECTURE DIAGRAM
+══════════════════════════════════════════ */
+.arch-wrap { min-width: 1080px; }
+
+/* Section title bar */
+.sec-bar {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 10px; margin-top: 20px;
+}
+.sec-bar:first-child { margin-top: 0; }
+.sec-line { flex: 1; height: 1px; background: var(--border2); }
+.sec-label {
+  font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.14em; font-family: var(--mono); white-space: nowrap;
+}
+
+/* Layer row */
+.layer {
+  display: flex; align-items: stretch; gap: 0;
+  margin-bottom: 4px;
+}
+
+.layer-tag {
+  width: 120px; flex-shrink: 0;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 10px 12px;
+  background: var(--s1); border: 1px solid var(--border2);
+  border-right: 3px solid;
+  border-radius: 8px 0 0 8px;
+}
+.lt-name { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
+.lt-sub  { font-size: 0.54rem; color: var(--muted); margin-top: 2px; font-family: var(--mono); }
+
+.layer-body {
+  flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  padding: 10px 14px;
+  background: var(--s2); border: 1px solid var(--border2);
+  border-left: none; border-radius: 0 8px 8px 0;
+}
+
+/* Node */
+.node {
+  background: var(--s3); border: 1px solid var(--border2);
+  border-radius: 7px; padding: 8px 12px;
+  min-width: 110px; cursor: pointer;
+  transition: all 0.18s; position: relative;
+  border-left: 3px solid transparent;
+}
+.node:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(0,0,0,0.5); border-color: var(--text); }
+.node-icon { font-size: 0.9rem; margin-bottom: 3px; }
+.node-name { font-size: 0.68rem; font-weight: 700; line-height: 1.2; color: var(--text); }
+.node-sub  { font-size: 0.56rem; font-family: var(--mono); color: var(--muted); margin-top: 2px; }
+.node-tag  {
+  position: absolute; top: -6px; right: 6px;
+  font-size: 0.5rem; font-weight: 800; font-family: var(--mono);
+  padding: 1px 5px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+}
+
+.arrow { font-size: 0.7rem; color: var(--muted2); flex-shrink: 0; padding: 0 2px; }
+
+/* flow connector between layers */
+.flow-connector {
+  display: flex; align-items: center; justify-content: center;
+  height: 22px; position: relative; margin: 0 0 2px;
+}
+.flow-connector::before {
+  content: ''; position: absolute;
+  left: 130px; right: 0; top: 50%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border2) 20%, var(--border2) 80%, transparent);
+}
+.flow-label {
+  position: relative; background: var(--s2);
+  border: 1px solid var(--border2); border-radius: 20px;
+  padding: 2px 10px; font-size: 0.56rem; font-family: var(--mono); color: var(--muted);
+  margin-left: 130px; z-index: 1;
+}
+
+/* ══════════════════════════════════════════
+   KV CACHE DEEP-DIVE
+══════════════════════════════════════════ */
+.kv-visual {
+  background: var(--s1);
+  border: 1px solid var(--border2);
+  border-radius: 12px; padding: 20px;
+  margin-bottom: 16px;
+}
+
+.kv-title {
+  font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.12em; font-family: var(--mono); margin-bottom: 16px;
+  display: flex; align-items: center; gap: 8px;
+}
+.kv-title-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--kv2); }
+
+/* PagedAttention block grid */
+.paged-grid { display: flex; flex-direction: column; gap: 12px; }
+.paged-row { display: flex; align-items: center; gap: 8px; }
+.paged-label { font-size: 0.6rem; font-family: var(--mono); color: var(--muted); width: 80px; flex-shrink: 0; text-align: right; }
+.blocks-wrap { display: flex; gap: 3px; flex-wrap: wrap; }
+.kv-block {
+  width: 36px; height: 28px; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.45rem; font-family: var(--mono); font-weight: 700;
+  border: 1px solid; position: relative; cursor: pointer;
+  transition: all 0.15s;
+}
+.kv-block:hover { transform: scale(1.2); z-index: 10; }
+.kv-block.used   { background: rgba(123,94,167,0.3); border-color: var(--kv2); color: var(--kv2); }
+.kv-block.free   { background: rgba(30,30,56,0.6); border-color: var(--border2); color: var(--muted2); }
+.kv-block.shared { background: rgba(0,255,204,0.12); border-color: var(--gpu); color: var(--gpu); }
+.kv-block.evict  { background: rgba(255,107,107,0.15); border-color: var(--quant); color: var(--quant); border-style: dashed; }
+
+/* ══════════════════════════════════════════
+   BATCHING VISUAL
+══════════════════════════════════════════ */
+.batch-compare {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px;
+}
+.batch-panel {
+  background: var(--s1); border: 1px solid var(--border2); border-radius: 10px; padding: 16px;
+}
+.bp-title {
+  font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em;
+  margin-bottom: 12px; display: flex; align-items: center; gap: 7px;
+}
+.request-bar {
+  height: 22px; border-radius: 3px; margin-bottom: 5px;
+  display: flex; align-items: center; padding: 0 8px;
+  font-size: 0.55rem; font-family: var(--mono); font-weight: 700;
+  position: relative; overflow: hidden;
+}
+.req-wait { position: absolute; right: 0; top: 0; bottom: 0; opacity: 0.3; }
+
+.throughput-bar {
+  height: 8px; border-radius: 4px; margin-top: 8px;
+  background: linear-gradient(90deg, var(--batch), var(--gpu));
+  transition: width 1s;
+}
+
+/* ══════════════════════════════════════════
+   MEMORY MAP
+══════════════════════════════════════════ */
+.mem-map {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+}
+.mem-bar-group { margin-top: 10px; }
+.mem-segment {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 0; border-bottom: 1px solid var(--border);
+  font-size: 0.7rem;
+}
+.mem-seg-color { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.mem-seg-label { flex: 1; color: var(--text); }
+.mem-seg-bar-wrap { width: 120px; height: 6px; background: var(--border2); border-radius: 3px; overflow: hidden; }
+.mem-seg-bar { height: 100%; border-radius: 3px; }
+.mem-seg-val { font-family: var(--mono); font-size: 0.62rem; font-weight: 700; width: 48px; text-align: right; }
+
+/* GPU utilization bars */
+.gpu-util { margin-top: 12px; }
+.gpu-row { margin-bottom: 8px; }
+.gpu-row-hd { display: flex; justify-content: space-between; font-size: 0.62rem; margin-bottom: 3px; font-family: var(--mono); }
+.gpu-bar-bg { height: 14px; background: var(--border2); border-radius: 3px; overflow: hidden; position: relative; }
+.gpu-bar-fill { height: 100%; border-radius: 3px; position: relative; transition: width 1s; }
+.gpu-bar-label { position: absolute; right: 6px; top: 0; height: 100%; display: flex; align-items: center; font-size: 0.55rem; font-family: var(--mono); font-weight: 700; }
+
+/* ══════════════════════════════════════════
+   FDE GUIDE
+══════════════════════════════════════════ */
+.fde-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+.fde-card {
+  border-radius: 10px; padding: 16px;
+  border: 1px solid var(--border2); background: var(--s1);
+  position: relative; overflow: hidden;
+}
+.fde-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  border-radius: 10px 10px 0 0;
+}
+.fde-tier { font-size: 0.55rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; font-family: var(--mono); margin-bottom: 6px; }
+.fde-role { font-size: 0.95rem; font-weight: 800; margin-bottom: 4px; line-height: 1.2; }
+.fde-sub  { font-size: 0.68rem; color: var(--muted); margin-bottom: 12px; }
+.fde-items { display: flex; flex-direction: column; gap: 6px; }
+.fde-item { display: flex; align-items: flex-start; gap: 7px; font-size: 0.7rem; line-height: 1.4; }
+.fde-dot  { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.depth-meter {
+  margin-top: 12px; padding: 8px 10px;
+  background: var(--s3); border-radius: 6px;
+  font-size: 0.62rem; font-family: var(--mono);
+}
+.depth-label { color: var(--muted); margin-bottom: 4px; }
+.depth-bar { height: 6px; border-radius: 3px; background: var(--border2); overflow: hidden; }
+.depth-fill { height: 100%; border-radius: 3px; }
+
+/* info table */
+.info-tbl { width: 100%; border-collapse: collapse; margin-top: 12px; }
+.info-tbl th {
+  text-align: left; padding: 6px 10px; font-size: 0.6rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+  border-bottom: 1px solid var(--border2); font-family: var(--mono);
+}
+.info-tbl td { padding: 7px 10px; font-size: 0.7rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+.info-tbl tr:last-child td { border-bottom: none; }
+.info-tbl td:first-child { font-weight: 700; color: var(--text); }
+.info-tbl td:nth-child(2) { color: var(--muted); font-size: 0.65rem; }
+.info-tbl td:nth-child(3) { font-family: var(--mono); font-size: 0.62rem; }
+
+.yes { color: var(--gpu); font-weight: 800; }
+.partial { color: var(--batch); font-weight: 700; }
+.no { color: var(--quant); }
+
+/* code block */
+.codeblock {
+  background: #020208;
+  border: 1px solid var(--border2); border-radius: 8px;
+  padding: 16px; font-family: var(--mono); font-size: 0.68rem; line-height: 1.9;
+  overflow-x: auto; margin-top: 12px;
+}
+
+/* tooltip */
+.tooltip-wrap { position: relative; display: inline-block; }
+.tooltip {
+  display: none;
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  background: var(--s3); border: 1px solid var(--border2); border-radius: 7px;
+  padding: 8px 12px; min-width: 200px; max-width: 280px;
+  font-size: 0.65rem; line-height: 1.5; color: var(--text);
+  z-index: 300; pointer-events: none; white-space: normal;
+}
+.node:hover .tooltip { display: block; }
+
+@keyframes pulse-glow {
+  0%,100% { box-shadow: 0 0 0 0 currentColor; }
+  50%      { box-shadow: 0 0 8px 2px currentColor; }
+}
+.pulse { animation: pulse-glow 2.5s ease-in-out infinite; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-left">
+    <div>
+      <div class="hdr-badge">vLLM ///</div>
+    </div>
+    <div>
+      <div class="hdr-title">High-Throughput LLM Inference Engine</div>
+      <div class="hdr-sub">PagedAttention · Continuous Batching · Tensor Parallelism · KV Cache Management</div>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab on"  onclick="sw('arch',this)">Architecture</button>
+    <button class="tab"     onclick="sw('kv',this)">KV Cache</button>
+    <button class="tab"     onclick="sw('batch',this)">Batching</button>
+    <button class="tab"     onclick="sw('mem',this)">Memory</button>
+    <button class="tab"     onclick="sw('fde',this)">FDE Relevance</button>
+  </div>
+</div>
+
+<!-- ══════════════════ ARCHITECTURE ══════════════════ -->
+<div id="view-arch" class="view on">
+<div class="arch-wrap">
+
+  <!-- L0: Client / API -->
+  <div class="sec-bar"><div class="sec-line"></div><div class="sec-label" style="color:var(--api)">● API Entrypoint</div><div class="sec-line"></div></div>
+  <div class="layer">
+    <div class="layer-tag" style="border-color:var(--api)">
+      <div class="lt-name" style="color:var(--api)">API Layer</div>
+      <div class="lt-sub">OpenAI-compatible</div>
+    </div>
+    <div class="layer-body">
+      <div class="node" style="border-left-color:var(--api)" onclick="">
+        <div class="node-tag" style="background:rgba(57,255,20,0.15);color:var(--api)">HTTP</div>
+        <div class="node-icon">🌐</div>
+        <div class="node-name">FastAPI Server</div>
+        <div class="node-sub">POST /v1/completions<br>POST /v1/chat/completions</div>
+        <div class="tooltip">OpenAI-compatible REST API. Accepts prompt, max_tokens, temperature, stream. Routes to AsyncEngine.</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node" style="border-left-color:var(--api)">
+        <div class="node-icon">🔌</div>
+        <div class="node-name">Streaming SSE</div>
+        <div class="node-sub">token-by-token output<br>AsyncGenerator</div>
+        <div class="tooltip">Server-sent events stream tokens as they're generated. Uses asyncio.Queue internally.</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node" style="border-left-color:var(--api)">
+        <div class="node-icon">🔑</div>
+        <div class="node-name">Request Parser</div>
+        <div class="node-sub">SamplingParams<br>prompt → token IDs</div>
+        <div class="tooltip">Tokenizes prompt using the model's tokenizer. Validates SamplingParams (temperature, top_p, etc.) and creates a SequenceGroup.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-connector"><div class="flow-label">SequenceGroup → AsyncLLMEngine</div></div>
+
+  <!-- L1: Engine -->
+  <div class="sec-bar"><div class="sec-line"></div><div class="sec-label" style="color:var(--sched)">● AsyncLLMEngine — Core Orchestration</div><div class="sec-line"></div></div>
+  <div class="layer">
+    <div class="layer-tag" style="border-color:var(--sched)">
+      <div class="lt-name" style="color:var(--sched)">Async Engine</div>
+      <div class="lt-sub">event loop driven</div>
+    </div>
+    <div class="layer-body">
+      <div class="node" style="border-left-color:var(--sched); min-width:150px" onclick="">
+        <div class="node-tag" style="background:rgba(255,60,172,0.15);color:var(--sched)">Core</div>
+        <div class="node-icon">⚙️</div>
+        <div class="node-name">LLMEngine</div>
+        <div class="node-sub">step() loop · add_request()<br>abort_request()</div>
+        <div class="tooltip">Main synchronous engine. Drives the per-step execution loop. Coordinates Scheduler, BlockManager, and Worker(s). Each step() call generates one new token per sequence.</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node" style="border-left-color:var(--sched); min-width:160px" onclick="">
+        <div class="node-tag" style="background:rgba(255,60,172,0.15);color:var(--sched)">🔑 Key</div>
+        <div class="node-icon">📋</div>
+        <div class="node-name">Scheduler</div>
+        <div class="node-sub">FCFS · preemption<br>waiting → running → swap</div>
+        <div class="tooltip">The brain of continuous batching. Decides which sequences to run each step. Uses 3 queues: waiting (not yet scheduled), running (on GPU), swapped (evicted to CPU). Implements preemption when GPU memory is full.</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node" style="border-left-color:var(--kv2); min-width:180px" onclick="">
+        <div class="node-tag" style="background:rgba(123,94,167,0.2);color:var(--kv2)">KV</div>
+        <div class="node-icon">🧱</div>
+        <div class="node-name">BlockSpaceManager</div>
+        <div class="node-sub">PagedAttention allocator<br>logical → physical blocks</div>
+        <div class="tooltip">Manages KV cache memory via paging. Maps logical blocks (sequence-visible) to physical blocks (GPU memory pages). Enables copy-on-write for beam search and prefix sharing across requests.</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node" style="border-left-color:var(--kv2)" onclick="">
+        <div class="node-icon">🔍</div>
+        <div class="node-name">Prefix Cache</div>
+        <div class="node-sub">hash-based lookup<br>prompt sharing</div>
+        <div class="tooltip">Caches KV blocks for repeated prompt prefixes. If two requests share a system prompt, the KV blocks are reused without recomputation. Hit rate can reach 60-80% in chat applications.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-connector"><div class="flow-label">SchedulerOutput → execute_model()</div></div>
+
+  <!-- L2: Batching -->
+  <div class="sec-bar"><div class="sec-line"></div><div class="sec-label" style="color:var(--batch)">● Continuous Batching Engine</div><div class="sec-line"></div></div>
+  <div class="layer">
+    <div class="layer-tag" style="border-color:var(--batch)">
+      <div class="lt-name" style="color:var(--batch)">Batching</div>
+      <div class="lt-sub">continuous / paged</div>
+    </div>
+    <div class="layer-body">
+      <div class="node" style="border-left-color:var(--batch); min-width:160px">
+        <div class="node-tag" style="background:rgba(255,140,66,0.15);color:var(--batch)">Core</div>
+        <div class="node-icon">📦</div>
+        <div class="node-name">Continuous Batching</div>
+        <div class="node-sub">vs static batching<br>per-step scheduling</div>
+        <div class="tooltip">Unlike static batching (wait for all requests to finish), continuous batching inserts new sequences into the batch the moment a slot frees up. This eliminates GPU idle time between requests and is the #1 throughput gain in vLLM.</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node" style="border-left-color:var(--batch)">
+        <div class="node-icon">🔢</div>
+        <div class="node-name">Token Budget</div>
+        <div class="node-sub">max_num_seqs<br>max_num_batched_tokens</div>
+        <div class="tooltip">Controls how many sequences and total tokens can be processed in a single forward pass. Tuned based on GPU memory capacity and model size.</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node" style="border-left-color:var(--batch)">
+        <div class="node-icon">🔀</div>
+        <div class="node-name">Chunked Prefill</div>
+        <div class="node-sub">split long prompts<br>prefill + decode mix</div>
+        <div class="tooltip">Splits long prompt prefill across multiple steps, allowing decode tokens from other requests to be processed concurrently. Reduces time-to-first-token for concurrent users.</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node" style="border-left-color:var(--batch)">
+        <div class="node-icon">🔄</div>
+        <div class="node-name">Speculative Decoding</div>
+        <div class="node-sub">draft model → verify<br>2-4× decode speedup</div>
+        <div class="tooltip">Uses a small draft model (e.g. 68M params) to generate K candidate tokens, then the large model verifies all K in one forward pass. Achieves 2-4× speedup on decode-heavy workloads.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-connector"><div class="flow-label">ModelInput → Worker.execute_model()</div></div>
+
+  <!-- L3: Workers / Tensor Parallel -->
+  <div class="sec-bar"><div class="sec-line"></div><div class="sec-label" style="color:var(--tensor)">● Worker Layer — Tensor + Pipeline Parallelism</div><div class="sec-line"></div></div>
+  <div class="layer">
+    <div class="layer-tag" style="border-color:var(--tensor)">
+      <div class="lt-name" style="color:var(--tensor)">Workers</div>
+      <div class="lt-sub">TP · PP · ray</div>
+    </div>
+    <div class="layer-body">
+      <div class="node" style="border-left-color:var(--tensor)">
+        <div class="node-icon">🗂️</div>
+        <div class="node-name">Worker (GPU 0)</div>
+        <div class="node-sub">TP rank 0 · NCCL<br>KV cache replica</div>
+        <div class="tooltip">Each Worker process manages one GPU. In tensor parallelism, attention heads and MLP layers are split across workers. Workers communicate via NCCL all-reduce during forward pass.</div>
+      </div>
+      <div class="arrow">⟷</div>
+      <div class="node" style="border-left-color:var(--tensor)">
+        <div class="node-icon">🗂️</div>
+        <div class="node-name">Worker (GPU 1)</div>
+        <div class="node-sub">TP rank 1 · NCCL<br>KV cache replica</div>
+        <div class="tooltip">Mirror worker. Holds complementary attention head shards. Communicates via high-bandwidth NVLink or InfiniBand.</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node" style="border-left-color:var(--tensor)">
+        <div class="node-icon">⟳</div>
+        <div class="node-name">NCCL All-Reduce</div>
+        <div class="node-sub">NVLink 600GB/s<br>InfiniBand fallback</div>
+        <div class="tooltip">After each attention layer, partial results from all TP workers are summed via NCCL all-reduce. NVLink bandwidth is critical — bottleneck here limits TP scaling efficiency.</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node" style="border-left-color:var(--tensor)">
+        <div class="node-icon">🎯</div>
+        <div class="node-name">Ray Distributed</div>
+        <div class="node-sub">multi-node PP<br>actor model</div>
+        <div class="tooltip">For pipeline parallelism across nodes, vLLM uses Ray actors. Each pipeline stage runs on a different node. Ray handles scheduling, fault tolerance, and inter-node communication.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-connector"><div class="flow-label">logits → sampler → next token</div></div>
+
+  <!-- L4: Model Execution -->
+  <div class="sec-bar"><div class="sec-line"></div><div class="sec-label" style="color:var(--gpu)">● Model Execution — Attention + Sampling</div><div class="sec-line"></div></div>
+  <div class="layer">
+    <div class="layer-tag" style="border-color:var(--gpu)">
+      <div class="lt-name" style="color:var(--gpu)">Model Exec</div>
+      <div class="lt-sub">forward pass</div>
+    </div>
+    <div class="layer-body">
+      <div class="node" style="border-left-color:var(--gpu); min-width:160px">
+        <div class="node-tag" style="background:rgba(0,255,204,0.1);color:var(--gpu)">CUDA</div>
+        <div class="node-icon">⚡</div>
+        <div class="node-name">PagedAttention CUDA</div>
+        <div class="node-sub">custom kernel<br>non-contiguous KV blocks</div>
+        <div class="tooltip">The core innovation. Custom CUDA kernel that reads KV cache from non-contiguous physical memory blocks (pages), eliminating memory fragmentation. Inspired by OS virtual memory paging. Reduces memory waste from ~60% to ~4%.</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node" style="border-left-color:var(--gpu)">
+        <div class="node-icon">⚡</div>
+        <div class="node-name">FlashAttention v2</div>
+        <div class="node-sub">IO-aware · fused<br>O(N) HBM reads</div>
+        <div class="tooltip">Tiled attention computation that minimizes HBM (High Bandwidth Memory) reads. Fuses Q·K·V matmuls into a single CUDA kernel. Reduces memory bandwidth bottleneck by 5-8×.</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node" style="border-left-color:var(--quant)">
+        <div class="node-tag" style="background:rgba(255,107,107,0.15);color:var(--quant)">Quant</div>
+        <div class="node-icon">🗜️</div>
+        <div class="node-name">Quantization</div>
+        <div class="node-sub">AWQ · GPTQ · FP8<br>INT4 / INT8</div>
+        <div class="tooltip">Weight quantization reduces model memory footprint. AWQ (Activation-aware Weight Quantization) is near-lossless at INT4. FP8 is natively supported on H100 with minimal quality loss and 2× throughput gain.</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node" style="border-left-color:var(--gpu)">
+        <div class="node-icon">🎲</div>
+        <div class="node-name">Sampler</div>
+        <div class="node-sub">top-p · top-k · temp<br>beam search · greedy</div>
+        <div class="tooltip">Applies sampling strategy to logits. Supports temperature scaling, top-p nucleus sampling, top-k truncation, repetition penalty, and beam search (with copy-on-write KV blocks).</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-connector"><div class="flow-label">token IDs → detokenize → response</div></div>
+
+  <!-- L5: Memory -->
+  <div class="sec-bar"><div class="sec-line"></div><div class="sec-label" style="color:var(--mem)">● Memory Hierarchy — GPU → CPU → Disk</div><div class="sec-line"></div></div>
+  <div class="layer">
+    <div class="layer-tag" style="border-color:var(--mem)">
+      <div class="lt-name" style="color:var(--mem)">Memory</div>
+      <div class="lt-sub">HBM → DRAM → NVMe</div>
+    </div>
+    <div class="layer-body">
+      <div class="node" style="border-left-color:var(--mem)">
+        <div class="node-tag" style="background:rgba(79,172,222,0.15);color:var(--mem)">HBM</div>
+        <div class="node-icon">🎮</div>
+        <div class="node-name">GPU HBM</div>
+        <div class="node-sub">model weights + KV cache<br>80GB H100 / 24GB 4090</div>
+        <div class="tooltip">GPU High Bandwidth Memory. Shared between model weights (static, ~14GB for Llama-3 8B in fp16) and KV cache (dynamic, remainder). gpu_memory_utilization=0.9 leaves 10% for activations.</div>
+      </div>
+      <div class="arrow">⟷ swap</div>
+      <div class="node" style="border-left-color:var(--mem)">
+        <div class="node-tag" style="background:rgba(79,172,222,0.12);color:var(--mem)">CPU</div>
+        <div class="node-icon">🖥️</div>
+        <div class="node-name">CPU DRAM Swap</div>
+        <div class="node-sub">preemption target<br>PCIe 64GB/s</div>
+        <div class="tooltip">When GPU memory is full, the Scheduler preempts lower-priority sequences and swaps their KV blocks to CPU RAM via PCIe. Swap adds latency (~2-5ms per block) but prevents OOM errors.</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node" style="border-left-color:var(--mem)">
+        <div class="node-icon">📊</div>
+        <div class="node-name">KV Cache Budget</div>
+        <div class="node-sub">block_size=16 tokens<br>num_gpu_blocks calc</div>
+        <div class="tooltip">At startup, vLLM runs a dummy forward pass to measure peak memory usage, then computes num_gpu_blocks = (total_memory × gpu_memory_utilization - model_weights) / kv_block_size.</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node" style="border-left-color:var(--mem)">
+        <div class="node-icon">💾</div>
+        <div class="node-name">Disk Offload</div>
+        <div class="node-sub">NVMe via llm-compressor<br>extreme memory saving</div>
+        <div class="tooltip">For extremely large models, weights can be offloaded to NVMe SSD via llm-compressor integration. Much slower but enables running 70B+ models on consumer GPUs with NVMe speed ~7GB/s.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quantization row -->
+  <div class="sec-bar" style="margin-top:16px"><div class="sec-line"></div><div class="sec-label" style="color:var(--quant)">● Optimization Stack</div><div class="sec-line"></div></div>
+  <div class="layer">
+    <div class="layer-tag" style="border-color:var(--quant)">
+      <div class="lt-name" style="color:var(--quant)">Optimize</div>
+      <div class="lt-sub">speed + efficiency</div>
+    </div>
+    <div class="layer-body">
+      <div class="node" style="border-left-color:var(--quant)">
+        <div class="node-icon">🗜️</div>
+        <div class="node-name">AWQ / GPTQ</div>
+        <div class="node-sub">INT4 weights<br>near-lossless</div>
+        <div class="tooltip">AWQ: Activation-aware Weight Quantization. Finds salient weights by analyzing activations, preserves them in higher precision. Achieves INT4 compression with <0.5% perplexity degradation.</div>
+      </div>
+      <div class="arrow">+</div>
+      <div class="node" style="border-left-color:var(--quant)">
+        <div class="node-icon">⚡</div>
+        <div class="node-name">FP8 / BF16</div>
+        <div class="node-sub">H100 native<br>2× vs FP16</div>
+        <div class="tooltip">H100 has native FP8 tensor cores. FP8 inference gives 2× throughput vs FP16 with minimal quality loss. BF16 is the default for most deployments — better dynamic range than FP16.</div>
+      </div>
+      <div class="arrow">+</div>
+      <div class="node" style="border-left-color:var(--gpu)">
+        <div class="node-icon">🔧</div>
+        <div class="node-name">Torch Compile</div>
+        <div class="node-sub">torch.compile()<br>graph capture</div>
+        <div class="tooltip">PyTorch 2.0 compile captures the forward pass as a graph and applies XLA-style optimizations: operator fusion, dead code elimination, kernel selection. Gives 10-30% additional speedup.</div>
+      </div>
+      <div class="arrow">+</div>
+      <div class="node" style="border-left-color:var(--gpu)">
+        <div class="node-icon">🎯</div>
+        <div class="node-name">CUDA Graphs</div>
+        <div class="node-sub">decode phase replay<br>reduce CPU overhead</div>
+        <div class="tooltip">Captures the decode-phase forward pass as a CUDA Graph. Replaying the graph eliminates Python overhead and CPU-GPU synchronization during decode, reducing per-token latency by 15-25%.</div>
+      </div>
+      <div class="arrow">+</div>
+      <div class="node" style="border-left-color:var(--tensor)">
+        <div class="node-icon">📡</div>
+        <div class="node-name">Lora Serving</div>
+        <div class="node-sub">multi-adapter · hot-swap<br>shared base weights</div>
+        <div class="tooltip">Serves multiple LoRA adapters on a single base model simultaneously. Adapters are hot-swapped between requests. Base model weights stay on GPU; only small adapter deltas are loaded per request. Enables multi-tenant fine-tuned serving.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════════════ KV CACHE ══════════════════ -->
+<div id="view-kv" class="view">
+<div style="max-width:1000px">
+
+  <div class="kv-visual">
+    <div class="kv-title"><div class="kv-title-dot"></div>PagedAttention — Virtual Memory for KV Cache</div>
+    <p style="font-size:0.72rem;color:var(--muted);line-height:1.7;margin-bottom:16px">
+      Traditional attention requires <strong style="color:var(--text)">contiguous GPU memory</strong> per sequence (pre-allocated to max_length). This wastes 60%+ of KV cache memory. PagedAttention borrows OS virtual paging: each sequence gets <strong style="color:var(--kv2)">logical blocks</strong> mapped to non-contiguous <strong style="color:var(--kv2)">physical blocks</strong> (pages) of fixed size (default: 16 tokens per block). Memory is allocated on demand, one block at a time.
+    </p>
+
+    <div class="paged-grid">
+      <div class="paged-row">
+        <div class="paged-label">Seq A (chat)</div>
+        <div class="blocks-wrap">
+          <div class="kv-block used" title="Block 0: tokens 0-15">B0<br><span style="font-size:0.4rem">K+V</span></div>
+          <div class="kv-block used">B1<br><span style="font-size:0.4rem">K+V</span></div>
+          <div class="kv-block used">B2<br><span style="font-size:0.4rem">K+V</span></div>
+          <div class="kv-block used">B3↗<br><span style="font-size:0.4rem">active</span></div>
+          <span style="font-size:0.58rem;color:var(--muted);align-self:center;margin-left:6px">4 blocks × 16 tok = 64 tokens</span>
+        </div>
+      </div>
+      <div class="paged-row">
+        <div class="paged-label">Seq B (code)</div>
+        <div class="blocks-wrap">
+          <div class="kv-block used">B7<br><span style="font-size:0.4rem">K+V</span></div>
+          <div class="kv-block used">B9<br><span style="font-size:0.4rem">K+V</span></div>
+          <div class="kv-block used">B12↗<br><span style="font-size:0.4rem">active</span></div>
+          <span style="font-size:0.58rem;color:var(--muted);align-self:center;margin-left:6px">Non-contiguous! B7, B9, B12</span>
+        </div>
+      </div>
+      <div class="paged-row">
+        <div class="paged-label">Shared prefix</div>
+        <div class="blocks-wrap">
+          <div class="kv-block shared">P0<br><span style="font-size:0.4rem">shared</span></div>
+          <div class="kv-block shared">P1<br><span style="font-size:0.4rem">shared</span></div>
+          <span style="font-size:0.58rem;color:var(--gpu);align-self:center;margin-left:6px">System prompt reused by 3 requests (CoW)</span>
+        </div>
+      </div>
+      <div class="paged-row">
+        <div class="paged-label">Evicted (swap)</div>
+        <div class="blocks-wrap">
+          <div class="kv-block evict">E3<br><span style="font-size:0.4rem">→CPU</span></div>
+          <div class="kv-block evict">E4<br><span style="font-size:0.4rem">→CPU</span></div>
+          <div class="kv-block evict">E8<br><span style="font-size:0.4rem">→CPU</span></div>
+          <span style="font-size:0.58rem;color:var(--quant);align-self:center;margin-left:6px">Swapped to CPU RAM — preempted low-priority seqs</span>
+        </div>
+      </div>
+      <div class="paged-row">
+        <div class="paged-label">Free blocks</div>
+        <div class="blocks-wrap">
+          <div class="kv-block free">F5</div><div class="kv-block free">F6</div>
+          <div class="kv-block free">F10</div><div class="kv-block free">F11</div>
+          <div class="kv-block free">F13</div><div class="kv-block free">F14</div>
+          <div class="kv-block free">F15</div><div class="kv-block free">F16</div>
+          <span style="font-size:0.58rem;color:var(--muted);align-self:center;margin-left:6px">Available for new sequences</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div class="kv-visual" style="margin-bottom:0">
+      <div class="kv-title"><div class="kv-title-dot" style="background:var(--gpu)"></div>KV Block Lifecycle</div>
+      <table class="info-tbl">
+        <thead><tr><th>State</th><th>Trigger</th><th>Location</th></tr></thead>
+        <tbody>
+          <tr><td style="color:var(--kv2)">Allocated</td><td>New token appended to seq</td><td style="font-family:var(--mono);font-size:0.62rem">GPU HBM</td></tr>
+          <tr><td style="color:var(--gpu)">Shared</td><td>CoW prefix hit (beam/prefix)</td><td style="font-family:var(--mono);font-size:0.62rem">GPU (ref counted)</td></tr>
+          <tr><td style="color:var(--batch)">Evicted</td><td>GPU full, low-priority seq preempted</td><td style="font-family:var(--mono);font-size:0.62rem">CPU DRAM</td></tr>
+          <tr><td style="color:var(--quant)">Freed</td><td>Sequence completes / aborted</td><td style="font-family:var(--mono);font-size:0.62rem">Free pool</td></tr>
+          <tr><td style="color:var(--mem)">Reloaded</td><td>Preempted seq rescheduled</td><td style="font-family:var(--mono);font-size:0.62rem">GPU (PCIe copy)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="kv-visual" style="margin-bottom:0">
+      <div class="kv-title"><div class="kv-title-dot" style="background:var(--tensor)"></div>KV Cache Size Formula</div>
+      <div class="codeblock" style="margin-top:0;font-size:0.65rem">
+<span style="color:var(--muted)"># Per layer, per token:</span><br>
+kv_size = 2 × num_heads × head_dim × dtype_bytes<br>
+<span style="color:var(--muted)"># Llama-3 8B (FP16):</span><br>
+<span style="color:var(--muted)"># 2 × 32 × 128 × 2 = 16,384 bytes/tok/layer</span><br>
+<span style="color:var(--muted)"># × 32 layers = 524,288 bytes = 0.5 MB/token</span><br><br>
+
+<span style="color:var(--muted)"># Total GPU KV budget:</span><br>
+avail = gpu_mem × gpu_memory_utilization<br>
+avail -= model_weights_bytes<br>
+num_blocks = avail // (block_size × kv_size)<br><br>
+
+<span style="color:var(--muted)"># Example H100 80GB, Llama-3 8B FP16:</span><br>
+<span style="color:var(--kv2)"># model: ~16GB → KV budget: ~56GB</span><br>
+<span style="color:var(--kv2)"># num_blocks ≈ 7,000 blocks × 16 tok = 112K tokens</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════════════ BATCHING ══════════════════ -->
+<div id="view-batch" class="view">
+<div style="max-width:1000px">
+
+  <div class="kv-visual">
+    <div class="kv-title"><div class="kv-title-dot" style="background:var(--batch)"></div>Static Batching vs Continuous Batching</div>
+    <div class="batch-compare">
+      <!-- Static -->
+      <div class="batch-panel">
+        <div class="bp-title" style="color:var(--quant)">❌ Static Batching (old)</div>
+        <div style="font-size:0.65rem;color:var(--muted);margin-bottom:10px">Waits for ALL requests in batch to finish. GPU idles while longest request runs.</div>
+        <div class="request-bar" style="background:rgba(255,107,107,0.15);width:100%;border:1px solid rgba(255,107,107,0.3);color:var(--quant)">Req A (short: 10 tok)<div class="req-wait" style="background:var(--quant);width:70%"></div></div>
+        <div style="font-size:0.55rem;color:var(--muted);margin:-2px 0 5px 8px;font-family:var(--mono)">70% idle wait ↑</div>
+        <div class="request-bar" style="background:rgba(255,107,107,0.15);width:100%;border:1px solid rgba(255,107,107,0.3);color:var(--quant)">Req B (medium: 50 tok)<div class="req-wait" style="background:var(--quant);width:30%"></div></div>
+        <div style="font-size:0.55rem;color:var(--muted);margin:-2px 0 5px 8px;font-family:var(--mono)">30% idle wait ↑</div>
+        <div class="request-bar" style="background:rgba(255,107,107,0.2);width:100%;border:1px solid rgba(255,107,107,0.5);color:var(--quant);font-weight:800">Req C (long: 200 tok) ← dictates batch</div>
+        <div style="font-size:0.55rem;color:var(--muted);margin:-2px 0 10px 8px;font-family:var(--mono)">All wait for this one</div>
+        <div style="font-size:0.7rem;color:var(--quant)">GPU utilization: ~35% · Throughput: low</div>
+      </div>
+      <!-- Continuous -->
+      <div class="batch-panel">
+        <div class="bp-title" style="color:var(--gpu)">✓ Continuous Batching (vLLM)</div>
+        <div style="font-size:0.65rem;color:var(--muted);margin-bottom:10px">New requests join the batch the instant a slot frees. No GPU idle time.</div>
+        <div style="display:flex;gap:4px;margin-bottom:8px">
+          <div style="flex:0.5;height:22px;background:rgba(0,255,204,0.2);border:1px solid var(--gpu);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:0.55rem;font-family:var(--mono);color:var(--gpu)">A✓</div>
+          <div style="flex:2.5;height:22px;background:rgba(79,172,222,0.15);border:1px solid var(--mem);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:0.55rem;font-family:var(--mono);color:var(--mem)">D ← joined when A finished</div>
+          <div style="flex:1;height:22px;background:rgba(0,255,204,0.2);border:1px solid var(--gpu);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:0.55rem;font-family:var(--mono);color:var(--gpu)">D✓</div>
+        </div>
+        <div style="display:flex;gap:4px;margin-bottom:8px">
+          <div style="flex:2;height:22px;background:rgba(255,140,66,0.15);border:1px solid var(--batch);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:0.55rem;font-family:var(--mono);color:var(--batch)">B (medium)</div>
+          <div style="flex:1.5;height:22px;background:rgba(79,172,222,0.15);border:1px solid var(--mem);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:0.55rem;font-family:var(--mono);color:var(--mem)">E ← B slot freed</div>
+        </div>
+        <div style="display:flex;gap:4px;margin-bottom:10px">
+          <div style="flex:4;height:22px;background:rgba(255,140,66,0.15);border:1px solid var(--batch);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:0.55rem;font-family:var(--mono);color:var(--batch)">C (long — runs full duration)</div>
+        </div>
+        <div style="font-size:0.7rem;color:var(--gpu)">GPU utilization: ~92% · Throughput: 3-4× higher</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:0">
+    <div class="kv-visual" style="margin-bottom:0">
+      <div class="kv-title"><div class="kv-title-dot" style="background:var(--sched)"></div>Scheduler State Machine</div>
+      <div style="font-size:0.65rem;color:var(--muted);margin-bottom:12px;line-height:1.6">Every request flows through 3 queues. The Scheduler makes decisions each step() call.</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="background:var(--s3);border:1px solid var(--border2);border-radius:7px;padding:10px 12px">
+          <div style="font-size:0.62rem;font-weight:800;color:var(--batch);font-family:var(--mono);margin-bottom:4px">WAITING queue</div>
+          <div style="font-size:0.65rem;color:var(--muted);line-height:1.5">New requests not yet scheduled. Moved to RUNNING when GPU blocks are available. FCFS ordering (can configure priority).</div>
+        </div>
+        <div style="text-align:center;font-size:0.7rem;color:var(--muted2)">↓ blocks allocated</div>
+        <div style="background:var(--s3);border:1px solid var(--gpu);border-radius:7px;padding:10px 12px">
+          <div style="font-size:0.62rem;font-weight:800;color:var(--gpu);font-family:var(--mono);margin-bottom:4px">RUNNING queue</div>
+          <div style="font-size:0.65rem;color:var(--muted);line-height:1.5">Active sequences generating tokens. Each step() adds one token. Completed seqs are removed, freeing blocks immediately (continuous batching!).</div>
+        </div>
+        <div style="text-align:center;font-size:0.7rem;color:var(--muted2)">↓↑ GPU full → preempt</div>
+        <div style="background:var(--s3);border:1px solid var(--quant);border-radius:7px;padding:10px 12px">
+          <div style="font-size:0.62rem;font-weight:800;color:var(--quant);font-family:var(--mono);margin-bottom:4px">SWAPPED queue</div>
+          <div style="font-size:0.65rem;color:var(--muted);line-height:1.5">Preempted seqs with KV blocks swapped to CPU RAM. Re-promoted to RUNNING when GPU memory frees up.</div>
+        </div>
+      </div>
+    </div>
+    <div class="kv-visual" style="margin-bottom:0">
+      <div class="kv-title"><div class="kv-title-dot" style="background:var(--tensor)"></div>Batching Modes Comparison</div>
+      <table class="info-tbl">
+        <thead><tr><th>Mode</th><th>Description</th><th>Throughput</th></tr></thead>
+        <tbody>
+          <tr><td style="color:var(--quant)">Static</td><td>Fixed batch, wait all</td><td><span class="no">1×</span></td></tr>
+          <tr><td style="color:var(--batch)">Dynamic</td><td>Variable batch size per step</td><td><span class="partial">1.5×</span></td></tr>
+          <tr><td style="color:var(--gpu)">Continuous</td><td>Per-step slot reuse</td><td><span class="yes">3-4×</span></td></tr>
+          <tr><td style="color:var(--kv2)">Chunked prefill</td><td>Split prefill + decode mix</td><td><span class="yes">4-5×</span></td></tr>
+          <tr><td style="color:var(--tensor)">Speculative</td><td>Draft model + verify</td><td><span class="yes">5-8× decode</span></td></tr>
+        </tbody>
+      </table>
+      <div class="kv-visual" style="margin-top:12px;padding:12px">
+        <div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);font-family:var(--mono);margin-bottom:8px">Key Config Knobs</div>
+        <div class="codeblock" style="margin:0;font-size:0.62rem;line-height:1.7">
+<span style="color:var(--batch)">max_num_seqs</span>=256&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--muted)"># concurrent seqs</span><br>
+<span style="color:var(--batch)">max_num_batched_tokens</span>=8192<span style="color:var(--muted)"># tokens per step</span><br>
+<span style="color:var(--kv2)">enable_chunked_prefill</span>=True<br>
+<span style="color:var(--gpu)">speculative_model</span>=<span style="color:var(--api)">"ngram"</span><br>
+<span style="color:var(--mem)">preemption_mode</span>=<span style="color:var(--api)">"swap"</span>&nbsp;<span style="color:var(--muted)"># or recompute</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══════════════════ MEMORY ══════════════════ -->
+<div id="view-mem" class="view">
+<div style="max-width:1000px">
+  <div class="mem-map">
+    <div class="kv-visual">
+      <div class="kv-title"><div class="kv-title-dot" style="background:var(--mem)"></div>GPU Memory Layout — H100 80GB with Llama-3 70B</div>
+      <div class="mem-bar-group">
+        <div class="mem-segment"><div class="mem-seg-color" style="background:var(--quant)"></div><span class="mem-seg-label">Model weights (BF16)</span><div class="mem-seg-bar-wrap"><div class="mem-seg-bar" style="width:100%;background:var(--quant)"></div></div><span class="mem-seg-val" style="color:var(--quant)">~70 GB</span></div>
+        <div style="font-size:0.62rem;color:var(--muted);margin:8px 0 12px;font-family:var(--mono)">→ Need 4× H100 (tensor parallel) for 70B at BF16</div>
+        <div style="font-size:0.65rem;font-weight:700;color:var(--text);margin-bottom:6px">Per-GPU with TP=4 (17.5GB weights/GPU):</div>
+        <div class="mem-segment"><div class="mem-seg-color" style="background:var(--quant)"></div><span class="mem-seg-label">Weights (TP shard)</span><div class="mem-seg-bar-wrap"><div class="mem-seg-bar" style="width:22%;background:var(--quant)"></div></div><span class="mem-seg-val" style="color:var(--quant)">17.5 GB</span></div>
+        <div class="mem-segment"><div class="mem-seg-color" style="background:var(--kv2)"></div><span class="mem-seg-label">KV Cache (90% util.)</span><div class="mem-seg-bar-wrap"><div class="mem-seg-bar" style="width:73%;background:var(--kv2)"></div></div><span class="mem-seg-val" style="color:var(--kv2)">~58 GB</span></div>
+        <div class="mem-segment"><div class="mem-seg-color" style="background:var(--gpu)"></div><span class="mem-seg-label">Activations (reserved)</span><div class="mem-seg-bar-wrap"><div class="mem-seg-bar" style="width:5%;background:var(--gpu)"></div></div><span class="mem-seg-val" style="color:var(--gpu)">4 GB</span></div>
+      </div>
+      <div style="margin-top:16px">
+        <div style="font-size:0.65rem;font-weight:700;color:var(--text);margin-bottom:8px">With INT4 AWQ quantization (÷4 weights):</div>
+        <div class="mem-segment"><div class="mem-seg-color" style="background:var(--quant)"></div><span class="mem-seg-label">Weights (AWQ INT4)</span><div class="mem-seg-bar-wrap"><div class="mem-seg-bar" style="width:5%;background:var(--quant)"></div></div><span class="mem-seg-val" style="color:var(--quant)">4.4 GB</span></div>
+        <div class="mem-segment"><div class="mem-seg-color" style="background:var(--kv2)"></div><span class="mem-seg-label">KV Cache (remaining)</span><div class="mem-seg-bar-wrap"><div class="mem-seg-bar" style="width:90%;background:var(--kv2)"></div></div><span class="mem-seg-val" style="color:var(--kv2)">~70 GB</span></div>
+        <div style="font-size:0.62rem;color:var(--gpu);font-family:var(--mono);margin-top:6px">→ Single H100 can serve 70B with AWQ, 10× more KV budget</div>
+      </div>
+    </div>
+
+    <div class="kv-visual">
+      <div class="kv-title"><div class="kv-title-dot" style="background:var(--gpu)"></div>GPU Utilization — Prefill vs Decode Phase</div>
+      <div class="gpu-util">
+        <div style="font-size:0.6rem;color:var(--muted);font-family:var(--mono);margin-bottom:10px">Prefill phase (processing prompt) — compute-bound:</div>
+        <div class="gpu-row">
+          <div class="gpu-row-hd"><span>SM Utilization</span><span style="color:var(--gpu)">94%</span></div>
+          <div class="gpu-bar-bg"><div class="gpu-bar-fill" style="width:94%;background:linear-gradient(90deg,var(--gpu),var(--kv2))"><div class="gpu-bar-label">matrix-heavy</div></div></div>
+        </div>
+        <div class="gpu-row">
+          <div class="gpu-row-hd"><span>HBM Bandwidth</span><span style="color:var(--mem)">3.35 TB/s</span></div>
+          <div class="gpu-bar-bg"><div class="gpu-bar-fill" style="width:85%;background:var(--mem)"></div></div>
+        </div>
+        <div class="gpu-row">
+          <div class="gpu-row-hd"><span>Tensor Core Util</span><span style="color:var(--tensor)">88%</span></div>
+          <div class="gpu-bar-bg"><div class="gpu-bar-fill" style="width:88%;background:var(--tensor)"></div></div>
+        </div>
+      </div>
+      <div class="gpu-util" style="margin-top:14px">
+        <div style="font-size:0.6rem;color:var(--muted);font-family:var(--mono);margin-bottom:10px">Decode phase (generating tokens) — memory-bandwidth-bound:</div>
+        <div class="gpu-row">
+          <div class="gpu-row-hd"><span>SM Utilization</span><span style="color:var(--quant)">28%</span></div>
+          <div class="gpu-bar-bg"><div class="gpu-bar-fill" style="width:28%;background:var(--quant)"><div class="gpu-bar-label" style="color:rgba(255,255,255,0.6)">low</div></div></div>
+        </div>
+        <div class="gpu-row">
+          <div class="gpu-row-hd"><span>HBM Bandwidth</span><span style="color:var(--quant)">95% (bottleneck)</span></div>
+          <div class="gpu-bar-bg"><div class="gpu-bar-fill" style="width:95%;background:var(--quant)"><div class="gpu-bar-label">bandwidth wall</div></div></div>
+        </div>
+        <div style="font-size:0.62rem;color:var(--quant);font-family:var(--mono);margin-top:6px">→ Decode is memory-bound: batching more seqs helps amortize weight reads</div>
+      </div>
+      <div style="margin-top:14px;padding:10px;background:var(--s3);border-radius:7px;border:1px solid var(--border2)">
+        <div style="font-size:0.62rem;font-family:var(--mono);line-height:1.8;color:var(--text)">
+          <span style="color:var(--muted)"># Roofline insight:</span><br>
+          <span style="color:var(--gpu)">Prefill:</span> FLOPS-bound → add GPUs (TP)<br>
+          <span style="color:var(--quant)">Decode:</span> BW-bound → batch more seqs<br>
+          <span style="color:var(--kv2)">Speculative decode</span> breaks the BW wall
+        </div>
+      </div>
+    </div>
+
+    <div class="kv-visual" style="grid-column:1/-1">
+      <div class="kv-title"><div class="kv-title-dot" style="background:var(--tensor)"></div>Parallelism Strategies — When to Use Each</div>
+      <table class="info-tbl">
+        <thead><tr><th>Strategy</th><th>Splits</th><th>Use When</th><th>Comm overhead</th><th>vLLM config</th></tr></thead>
+        <tbody>
+          <tr><td style="color:var(--tensor)">Tensor Parallel (TP)</td><td>Attention heads + MLP weights across GPUs</td><td>Single node, NVLink available, large models</td><td style="font-family:var(--mono);font-size:0.62rem">All-reduce per layer</td><td style="font-family:var(--mono);font-size:0.62rem">tensor_parallel_size=4</td></tr>
+          <tr><td style="color:var(--sched)">Pipeline Parallel (PP)</td><td>Layers across nodes (stage 0: L0-15, stage 1: L16-31)</td><td>Multi-node, large model that doesn't fit even TP</td><td style="font-family:var(--mono);font-size:0.62rem">P2P per microbatch</td><td style="font-family:var(--mono);font-size:0.62rem">pipeline_parallel_size=2</td></tr>
+          <tr><td style="color:var(--batch)">Data Parallel</td><td>Replicate full model, split request load</td><td>Multiple identical model replicas, high traffic</td><td style="font-family:var(--mono);font-size:0.62rem">None (independent)</td><td style="font-family:var(--mono);font-size:0.62rem">Multiple vLLM instances + LB</td></tr>
+          <tr><td style="color:var(--gpu)">Expert Parallel (MoE)</td><td>MoE expert layers across GPUs</td><td>Mixtral, Qwen-MoE, DeepSeek-V3</td><td style="font-family:var(--mono);font-size:0.62rem">All-to-all routing</td><td style="font-family:var(--mono);font-size:0.62rem">enable_expert_parallel=True</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══════════════════ FDE RELEVANCE ══════════════════ -->
+<div id="view-fde" class="view">
+
+  <div style="background:linear-gradient(135deg,rgba(0,255,204,0.06),rgba(123,94,167,0.06));border:1px solid var(--border2);border-radius:12px;padding:20px;margin-bottom:20px;max-width:900px">
+    <div style="font-size:0.6rem;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;color:var(--gpu);font-family:var(--mono);margin-bottom:8px">Direct Answer</div>
+    <div style="font-size:1.05rem;font-weight:700;line-height:1.5;margin-bottom:10px">Yes — but it depends heavily on <em>which</em> FDE role you're targeting.</div>
+    <div style="font-size:0.78rem;color:var(--muted);line-height:1.8">
+      vLLM internals (PagedAttention, continuous batching, KV cache management) are <strong style="color:var(--text)">table-stakes for infrastructure/platform FDE roles</strong> at companies serving LLMs at scale. For application-layer FDE roles, a conceptual understanding is enough — you don't need to know CUDA kernel code. The clearest signal: if the JD mentions "LLM serving," "inference optimization," "GPU infrastructure," or "model deployment at scale" → deep vLLM knowledge is expected.
+    </div>
+  </div>
+
+  <div class="fde-grid" style="max-width:1060px">
+
+    <!-- ML/AI Infra FDE -->
+    <div class="fde-card">
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--gpu);border-radius:10px 10px 0 0"></div>
+      <div class="fde-tier" style="color:var(--gpu)">Tier 1 — Deep Required</div>
+      <div class="fde-role">ML Infra / AI Platform FDE</div>
+      <div class="fde-sub">NVIDIA, Anyscale, Modal, Together AI, Fireworks AI, Baseten, Replicate, AWS Bedrock team</div>
+      <div class="fde-items">
+        <div class="fde-item"><div class="fde-dot" style="background:var(--gpu)"></div>Expected to explain PagedAttention, continuous batching, KV cache eviction policy from first principles</div>
+        <div class="fde-item"><div class="fde-dot" style="background:var(--gpu)"></div>Tune gpu_memory_utilization, max_num_seqs, quantization for customer workloads live in interviews</div>
+        <div class="fde-item"><div class="fde-dot" style="background:var(--gpu)"></div>Diagnose OOM errors, latency spikes, throughput bottlenecks from metrics</div>
+        <div class="fde-item"><div class="fde-dot" style="background:var(--gpu)"></div>Design multi-GPU serving topologies (TP + PP + data parallel)</div>
+        <div class="fde-item"><div class="fde-dot" style="background:var(--gpu)"></div>Understand roofline model: when you're compute-bound vs bandwidth-bound</div>
+      </div>
+      <div class="depth-meter">
+        <div class="depth-label">Depth required</div>
+        <div class="depth-bar"><div class="depth-fill" style="width:95%;background:var(--gpu)"></div></div>
+      </div>
+    </div>
+
+    <!-- AI Solutions FDE -->
+    <div class="fde-card">
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--batch);border-radius:10px 10px 0 0"></div>
+      <div class="fde-tier" style="color:var(--batch)">Tier 2 — Conceptual + Applied</div>
+      <div class="fde-role">AI Solutions / Principal FDE</div>
+      <div class="fde-sub">Anthropic, OpenAI, Google DeepMind, Cohere, Mistral AI, Distyl AI (like your opportunity)</div>
+      <div class="fde-items">
+        <div class="fde-item"><div class="fde-dot" style="background:var(--batch)"></div>Must explain <em>why</em> vLLM is faster (paging vs contiguous, continuous vs static batching)</div>
+        <div class="fde-item"><div class="fde-dot" style="background:var(--batch)"></div>Know when to use vLLM vs TGI vs TensorRT-LLM for a given customer use case</div>
+        <div class="fde-item"><div class="fde-dot" style="background:var(--batch)"></div>Size GPU clusters for given throughput/latency SLAs (back-of-envelope)</div>
+        <div class="fde-item"><div class="fde-dot" style="background:var(--batch)"></div>Explain quantization trade-offs (AWQ vs GPTQ vs FP8) to technical customers</div>
+        <div class="fde-item"><div class="fde-dot" style="background:var(--batch)"></div>Don't need CUDA kernel internals — architecture-level is sufficient</div>
+      </div>
+      <div class="depth-meter">
+        <div class="depth-label">Depth required</div>
+        <div class="depth-bar"><div class="depth-fill" style="width:65%;background:var(--batch)"></div></div>
+      </div>
+    </div>
+
+    <!-- Enterprise AI FDE -->
+    <div class="fde-card">
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--mem);border-radius:10px 10px 0 0"></div>
+      <div class="fde-tier" style="color:var(--mem)">Tier 3 — Awareness Enough</div>
+      <div class="fde-role">Enterprise AI / App-Layer FDE</div>
+      <div class="fde-sub">Salesforce, SAP, ServiceNow, Lucid (your current role), enterprise LLM deployments</div>
+      <div class="fde-items">
+        <div class="fde-item"><div class="fde-dot" style="background:var(--mem)"></div>Know vLLM exists and why it's the standard choice for self-hosted LLM serving</div>
+        <div class="fde-item"><div class="fde-dot" style="background:var(--mem)"></div>Able to answer "why is our inference slow?" at a systems level (batching? GPU? quantization?)</div>
+        <div class="fde-item"><div class="fde-dot" style="background:var(--mem)"></div>Understand cost/performance trade-offs when advising on cloud vs self-hosted</div>
+        <div class="fde-item"><div class="fde-dot" style="background:var(--mem)"></div>Know the difference between TTFT and TPS and what affects each</div>
+        <div class="fde-item"><div class="fde-dot" style="background:var(--mem)"></div>vLLM deep dive is a differentiator, not a requirement, at this tier</div>
+      </div>
+      <div class="depth-meter">
+        <div class="depth-label">Depth required</div>
+        <div class="depth-bar"><div class="depth-fill" style="width:30%;background:var(--mem)"></div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- What YOU need for Principal AI Architect / Head of AI -->
+  <div style="max-width:1060px;margin-top:16px">
+    <div class="kv-visual">
+      <div class="kv-title"><div class="kv-title-dot" style="background:var(--sched)"></div>For YOUR specific job search — Principal AI Architect / Head of AI track</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+          <div style="font-size:0.65rem;font-weight:800;color:var(--gpu);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;font-family:var(--mono)">Must Know Cold (IC + Leadership track)</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;gap:8px;font-size:0.7rem;line-height:1.5"><span style="color:var(--gpu);flex-shrink:0">✓</span>PagedAttention = OS virtual memory for KV cache (eliminates fragmentation)</div>
+            <div style="display:flex;gap:8px;font-size:0.7rem;line-height:1.5"><span style="color:var(--gpu);flex-shrink:0">✓</span>Continuous batching = per-step slot reuse = 3-4× throughput vs static</div>
+            <div style="display:flex;gap:8px;font-size:0.7rem;line-height:1.5"><span style="color:var(--gpu);flex-shrink:0">✓</span>KV cache size formula (can estimate GPU budget for any model)</div>
+            <div style="display:flex;gap:8px;font-size:0.7rem;line-height:1.5"><span style="color:var(--gpu);flex-shrink:0">✓</span>Prefill is compute-bound, decode is bandwidth-bound — practical implications</div>
+            <div style="display:flex;gap:8px;font-size:0.7rem;line-height:1.5"><span style="color:var(--gpu);flex-shrink:0">✓</span>AWQ/FP8 quantization — trade-offs vs quality</div>
+            <div style="display:flex;gap:8px;font-size:0.7rem;line-height:1.5"><span style="color:var(--gpu);flex-shrink:0">✓</span>TP vs PP vs DP — when to use each topology</div>
+            <div style="display:flex;gap:8px;font-size:0.7rem;line-height:1.5"><span style="color:var(--gpu);flex-shrink:0">✓</span>TTFT, TPS, P50/P99 latency — how to measure and what affects them</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:0.65rem;font-weight:800;color:var(--batch);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;font-family:var(--mono)">Competitive Edge — Differentiators</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;gap:8px;font-size:0.7rem;line-height:1.5"><span style="color:var(--batch);flex-shrink:0">★</span>Speculative decoding mechanics (draft model → verify in 1 pass)</div>
+            <div style="display:flex;gap:8px;font-size:0.7rem;line-height:1.5"><span style="color:var(--batch);flex-shrink:0">★</span>Chunked prefill — mixing prefill + decode tokens in same step</div>
+            <div style="display:flex;gap:8px;font-size:0.7rem;line-height:1.5"><span style="color:var(--batch);flex-shrink:0">★</span>Multi-LoRA serving — shared base weights, hot-swap adapters</div>
+            <div style="display:flex;gap:8px;font-size:0.7rem;line-height:1.5"><span style="color:var(--batch);flex-shrink:0">★</span>Prefix caching hit rates and cost savings in production</div>
+            <div style="display:flex;gap:8px;font-size:0.7rem;line-height:1.5"><span style="color:var(--batch);flex-shrink:0">★</span>vLLM vs TensorRT-LLM vs TGI decision framework for customer scenarios</div>
+            <div style="display:flex;gap:8px;font-size:0.7rem;line-height:1.5"><span style="color:var(--batch);flex-shrink:0">★</span>Designing GPU cluster sizing for given TPM/latency SLAs</div>
+            <div style="display:flex;gap:8px;font-size:0.7rem;line-height:1.5"><span style="color:var(--batch);flex-shrink:0">★</span>A Substack post on vLLM architecture puts you in top 5% of candidates</div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:14px;padding:12px;background:var(--s3);border-radius:8px;border-left:3px solid var(--kv2)">
+        <div style="font-size:0.72rem;line-height:1.7;color:var(--text)">
+          <strong style="color:var(--kv2)">Bottom line for you, Venkat:</strong> At the Principal AI Architect and Head of AI level you're targeting, vLLM internals are <em>expected interview material</em> — not because you'll be writing CUDA kernels, but because you're the person who tells a CTO "here's why your inference costs are 4× too high and here's how to fix it." The ability to reason about KV cache budgets, batching strategies, and quantization trade-offs is a core part of the credibility signal in those conversations. This is also <strong style="color:var(--gpu)">directly publishable as AegisAI + vLLM integration content</strong> on your Substack — high-value, low-competition niche.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function sw(id, btn) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.getElementById('view-' + id).classList.add('on');
+  btn.classList.add('on');
+}
+</script>
+</body>
+</html>

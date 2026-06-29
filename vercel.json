@@ -1,0 +1,6 @@
+{
+  "framework": null,
+  "installCommand": "echo 'static demo'",
+  "buildCommand": "echo 'vllm architecture demo'",
+  "outputDirectory": "demo"
+}

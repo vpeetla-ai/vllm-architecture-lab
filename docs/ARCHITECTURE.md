@@ -1,0 +1,59 @@
+# Architecture — vLLM Architecture Lab
+
+## Purpose
+
+Educational reference for vLLM's high-throughput inference design. Maps 1:1 to the interactive demo tabs.
+
+## Layer map
+
+| Layer | vLLM component | This repo |
+|-------|----------------|-----------|
+| API | FastAPI, OpenAI routes, SSE streaming | `backend/app/main.py` |
+| Engine | `LLMEngine`, `AsyncLLMEngine` | `engine/llm_engine.py`, `async_engine.py` |
+| Scheduler | FCFS, preemption, swap | `scheduler/scheduler.py` |
+| KV cache | `BlockSpaceManager`, prefix cache | `kv_cache/block_manager.py` |
+| Batching | Continuous batching, token budget | scheduler + config knobs |
+| Model exec | PagedAttention CUDA, FlashAttn, sampler | sampler stub; CUDA documented only |
+
+## Key design decisions
+
+### ADR-001: Simulator, not fork
+
+We implement **scheduling and memory semantics** in pure Python without CUDA. This keeps CI fast and makes queue/block state inspectable via API — appropriate for interview prep and architecture teaching.
+
+### ADR-002: Honest status boundaries
+
+CUDA kernels, real weight loading, and NCCL are **documented conceptually** in the HTML explorer. Production deployments should use upstream vLLM.
+
+### ADR-003: OpenAI-compatible API shape
+
+`POST /v1/completions` returns stub tokens so integrators (AegisAI gateway, content factory) can test routing without GPU.
+
+## KV cache formula
+
+```text
+kv_per_token = 2 × num_heads × head_dim × dtype_bytes × num_layers
+num_blocks = (gpu_mem × util − weights) / (block_size × kv_per_token)
+```
+
+See `kv_cache/formulas.py`.
+
+## Scheduler state machine
+
+```text
+WAITING → (blocks available) → RUNNING → (complete) → freed blocks
+RUNNING → (GPU full) → SWAPPED → (blocks free) → RUNNING
+```
+
+## Integration with vpeetla-ai stack
+
+| Use case | Integration |
+|----------|-------------|
+| AegisAI gateway | Route `/v1/completions` through policy + HITL |
+| LoopForge | Tune `max_num_seqs`, `gpu_memory_utilization` via harness |
+| Portfolio | Case study + live demo for FDE interviews |
+
+## References
+
+- [vLLM paper — PagedAttention](https://arxiv.org/abs/2309.06150)
+- Interactive demo: `demo/index.html`
