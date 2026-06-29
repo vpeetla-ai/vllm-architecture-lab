@@ -1,11 +1,16 @@
 # Deploy — vLLM Architecture Lab
 
-## Live URLs
+## Live URLs (production)
 
-| Service | URL |
-|---------|-----|
-| **Demo UI** | https://vllm-architecture-lab.vercel.app |
-| **API** | https://vllm-architecture-lab-api.onrender.com |
+| Service | URL | Status |
+|---------|-----|--------|
+| **Demo UI** | https://vllm-architecture-lab.vercel.app | Live |
+| **API** | https://vllm-architecture-lab-api.onrender.com | Live |
+
+```bash
+curl https://vllm-architecture-lab-api.onrender.com/health
+# → {"status":"ok","service":"vllm-architecture-lab","version":"0.1.0"}
+```
 
 ## Vercel (demo)
 
