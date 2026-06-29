@@ -1,2 +1,2 @@
-// Set after Render deploy; empty = localhost:8000
-const VLLM_LAB_API = "";
+// Live Render API
+const VLLM_LAB_API = "https://vllm-architecture-lab-api.onrender.com";

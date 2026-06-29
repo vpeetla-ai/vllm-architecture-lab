@@ -11,7 +11,8 @@ git clone https://github.com/vpeetla-ai/vpeetla-ai-skills.git
 
 ---
 
-[![Live Demo](https://img.shields.io/badge/demo-architecture_lab-brightgreen)](https://vllm-architecture-lab.vercel.app)
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://vllm-architecture-lab.vercel.app)
+[![API](https://img.shields.io/badge/API-Render-46E3B7)](https://vllm-architecture-lab-api.onrender.com/health)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Org](https://img.shields.io/badge/GitHub-vpeetla--ai-blue)](https://github.com/vpeetla-ai)
 
@@ -19,7 +20,7 @@ git clone https://github.com/vpeetla-ai/vpeetla-ai-skills.git
 
 > Not a production vLLM fork. A **reference lab** for Principal AI Architect / FDE interviews: understand *why* vLLM achieves 3–4× throughput vs static batching.
 
-[▶ Live demo](https://vllm-architecture-lab.vercel.app) · [Architecture tabs](demo/index.html) · [venkat-ai.com/work](https://venkat-ai.com/work)
+[▶ Live demo](https://vllm-architecture-lab.vercel.app) · [API](https://vllm-architecture-lab-api.onrender.com/health) · [Architecture tabs](demo/index.html) · [venkat-ai.com/work](https://venkat-ai.com/work)
 
 ---
 
