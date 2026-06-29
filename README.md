@@ -109,15 +109,14 @@ Open `demo/index.html` locally or deploy to Vercel. Set `demo/config.js` → `VL
 
 ## Deploy
 
-| Layer | Host | Config |
-|-------|------|--------|
-| UI | Vercel | `vercel.json` → `demo/` |
-| API | Render | `render.yaml`, `plan: free` |
+| Layer | Host | URL |
+|-------|------|-----|
+| UI | Vercel | https://vllm-architecture-lab.vercel.app |
+| API | Render | https://vllm-architecture-lab-api.onrender.com |
 
-```bash
-cd demo && vercel --prod
-# Render: connect repo, uses render.yaml
-```
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/vpeetla-ai/vllm-architecture-lab)
+
+See [docs/DEPLOY.md](docs/DEPLOY.md) for full steps.
 
 ---
 
