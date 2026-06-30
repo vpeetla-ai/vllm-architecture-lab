@@ -34,6 +34,12 @@ class BlockSpaceManager:
     seq_block_table: dict[str, list[int]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        if self.block_size < 1:
+            raise ValueError("block_size must be >= 1")
+        if self.num_gpu_blocks < 1:
+            raise ValueError("num_gpu_blocks must be >= 1")
+        if self.num_cpu_blocks < 0:
+            raise ValueError("num_cpu_blocks must be >= 0")
         if not self.blocks:
             self.blocks = [PhysicalBlock(i) for i in range(self.num_gpu_blocks + self.num_cpu_blocks)]
             self.free_gpu = list(range(self.num_gpu_blocks))
@@ -63,6 +69,8 @@ class BlockSpaceManager:
         table = self.seq_block_table.get(seq_id, [])
         needed = self.blocks_needed(num_tokens)
         if len(table) >= needed:
+            if table and self.blocks[table[-1]].ref_count > 1:
+                return self._copy_on_write_tail(seq_id, table)
             return table
         if not self.free_gpu:
             return None
@@ -72,6 +80,26 @@ class BlockSpaceManager:
         b.owner_seq_id = seq_id
         b.ref_count = 1
         table.append(bid)
+        self.seq_block_table[seq_id] = table
+        return table
+
+    def allocate_missing_blocks(self, seq_id: str, total_tokens: int) -> list[int] | None:
+        """Extend an existing table until it can cover total_tokens."""
+        table = self.seq_block_table.get(seq_id, [])
+        needed = self.blocks_needed(total_tokens)
+        missing = needed - len(table)
+        if missing <= 0:
+            return table
+        if len(self.free_gpu) < missing:
+            return None
+        for _ in range(missing):
+            bid = self.free_gpu.pop(0)
+            b = self.blocks[bid]
+            b.state = BlockState.USED
+            b.owner_seq_id = seq_id
+            b.ref_count = 1
+            b.on_cpu = False
+            table.append(bid)
         self.seq_block_table[seq_id] = table
         return table
 
@@ -99,14 +127,25 @@ class BlockSpaceManager:
         self.seq_block_table[seq_id] = table
         return table
 
+    def has_live_blocks(self, block_ids: list[int]) -> bool:
+        return all(
+            0 <= bid < len(self.blocks)
+            and self.blocks[bid].state is not BlockState.FREE
+            and self.blocks[bid].ref_count > 0
+            for bid in block_ids
+        )
+
     def swap_out(self, seq_id: str) -> bool:
         table = self.seq_block_table.get(seq_id, [])
         if not table:
             return False
+        gpu_blocks = [bid for bid in table if bid < self.num_gpu_blocks]
+        if len(self.free_cpu) < len(gpu_blocks):
+            return False
         for bid in table:
             if bid >= self.num_gpu_blocks:
                 continue
-            if not self.free_cpu:
+            if self.blocks[bid].ref_count > 1:
                 return False
         new_table: list[int] = []
         for bid in table:
@@ -124,6 +163,24 @@ class BlockSpaceManager:
                 new_table.append(bid)
         self.seq_block_table[seq_id] = new_table
         return True
+
+    def _copy_on_write_tail(self, seq_id: str, table: list[int]) -> list[int] | None:
+        if not self.free_gpu:
+            return None
+        old_bid = table[-1]
+        old_block = self.blocks[old_bid]
+        new_bid = self.free_gpu.pop(0)
+        old_block.ref_count -= 1
+        if old_block.ref_count <= 1 and old_block.state is BlockState.SHARED:
+            old_block.state = BlockState.USED
+        new_block = self.blocks[new_bid]
+        new_block.state = BlockState.USED
+        new_block.owner_seq_id = seq_id
+        new_block.ref_count = 1
+        new_block.on_cpu = False
+        table[-1] = new_bid
+        self.seq_block_table[seq_id] = table
+        return table
 
     def swap_in(self, seq_id: str) -> bool:
         table = self.seq_block_table.get(seq_id, [])
