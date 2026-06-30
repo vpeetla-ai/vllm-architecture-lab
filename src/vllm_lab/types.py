@@ -21,6 +21,40 @@ class SamplingParams:
     top_p: float = 0.9
     top_k: int = 50
 
+    def __post_init__(self) -> None:
+        if self.max_tokens < 1:
+            raise ValueError("max_tokens must be >= 1")
+        if self.temperature < 0:
+            raise ValueError("temperature must be >= 0")
+        if not 0 < self.top_p <= 1:
+            raise ValueError("top_p must be in (0, 1]")
+        if self.top_k < 0:
+            raise ValueError("top_k must be >= 0")
+
+
+@dataclass(frozen=True)
+class TraceEvent:
+    """Structured simulator event for API/demo inspection."""
+
+    event: str
+    message: str
+    seq_id: str | None = None
+    group_id: str | None = None
+    data: dict[str, Any] = field(default_factory=dict)
+
+    def as_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "event": self.event,
+            "message": self.message,
+        }
+        if self.seq_id is not None:
+            payload["seq_id"] = self.seq_id
+        if self.group_id is not None:
+            payload["group_id"] = self.group_id
+        if self.data:
+            payload["data"] = self.data
+        return payload
+
 
 @dataclass
 class Sequence:
@@ -86,6 +120,7 @@ class SchedulerOutput:
     swapped_in_seq_ids: list[str]
     num_batched_tokens: int
     metadata: dict[str, Any] = field(default_factory=dict)
+    trace_events: list[TraceEvent] = field(default_factory=list)
 
 
 @dataclass
@@ -95,4 +130,4 @@ class StepOutput:
     finished_seq_ids: list[str]
     scheduler: SchedulerOutput
     gpu_utilization_pct: float
-    trace: list[str] = field(default_factory=list)
+    trace: list[TraceEvent] = field(default_factory=list)

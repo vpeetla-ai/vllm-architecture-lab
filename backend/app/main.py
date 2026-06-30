@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from vllm_lab.config import EngineConfig
 from vllm_lab.engine.llm_engine import LLMEngine
 from vllm_lab.kv_cache.formulas import LLAMA3_8B, LLAMA3_70B, ModelSpec, compute_memory_budget
-from vllm_lab.types import make_group
+from vllm_lab.types import StepOutput, make_group
 
 app = FastAPI(
     title="vLLM Architecture Lab API",
@@ -32,22 +32,39 @@ class PromptRequest(BaseModel):
 
 class MemoryBudgetRequest(BaseModel):
     model: str = "llama-3-8b"
-    gpu_memory_gb: float = 80.0
-    gpu_memory_utilization: float = 0.9
-    model_weights_gb: float = 16.0
-    block_size: int = 16
-    tensor_parallel_size: int = 1
+    gpu_memory_gb: float = Field(default=80.0, gt=0)
+    gpu_memory_utilization: float = Field(default=0.9, gt=0, le=1)
+    model_weights_gb: float = Field(default=16.0, ge=0)
+    block_size: int = Field(default=16, ge=1)
+    tensor_parallel_size: int = Field(default=1, ge=1)
     quantization: str | None = None
 
 
 class CompletionRequest(BaseModel):
     prompt: str
-    max_tokens: int = 32
-    temperature: float = 0.7
+    max_tokens: int = Field(default=32, ge=1, le=256)
+    temperature: float = Field(default=0.7, ge=0)
     stream: bool = False
 
 
 MODELS = {"llama-3-8b": LLAMA3_8B, "llama-3-70b": LLAMA3_70B}
+
+
+def _step_to_dict(out: StepOutput) -> dict:
+    return {
+        "step": out.step,
+        "generated_tokens": out.generated_tokens,
+        "finished_seq_ids": out.finished_seq_ids,
+        "gpu_utilization_pct": out.gpu_utilization_pct,
+        "scheduler": {
+            "scheduled": out.scheduler.scheduled_seq_ids,
+            "preempted": out.scheduler.preempted_seq_ids,
+            "swapped_in": out.scheduler.swapped_in_seq_ids,
+            "batched_tokens": out.scheduler.num_batched_tokens,
+            "queues": out.scheduler.metadata,
+        },
+        "trace": [event.as_dict() for event in out.trace],
+    }
 
 
 @app.get("/health")
@@ -72,20 +89,7 @@ def step_once() -> dict:
     out = _engine.step()
     if out is None:
         return {"idle": True}
-    return {
-        "idle": False,
-        "step": out.step,
-        "generated_tokens": out.generated_tokens,
-        "finished_seq_ids": out.finished_seq_ids,
-        "gpu_utilization_pct": out.gpu_utilization_pct,
-        "scheduler": {
-            "scheduled": out.scheduler.scheduled_seq_ids,
-            "preempted": out.scheduler.preempted_seq_ids,
-            "swapped_in": out.scheduler.swapped_in_seq_ids,
-            "batched_tokens": out.scheduler.num_batched_tokens,
-            "queues": out.scheduler.metadata,
-        },
-    }
+    return {"idle": False, **_step_to_dict(out)}
 
 
 @app.post("/api/simulate")
@@ -96,15 +100,9 @@ def simulate(req: PromptRequest) -> dict:
     _engine.add_request(group)
     steps = []
     for out in _engine.run_until_idle(max_steps=req.max_tokens + 10):
-        steps.append(
-            {
-                "step": out.step,
-                "generated_tokens": out.generated_tokens,
-                "finished_seq_ids": out.finished_seq_ids,
-                "gpu_utilization_pct": out.gpu_utilization_pct,
-                "queues": out.scheduler.metadata,
-            }
-        )
+        step = _step_to_dict(out)
+        step["queues"] = out.scheduler.metadata
+        steps.append(step)
     return {"steps": steps, "snapshot": _engine.snapshot()}
 
 
@@ -136,10 +134,11 @@ def memory_budget(req: MemoryBudgetRequest) -> dict:
 @app.post("/v1/completions")
 def openai_completions(req: CompletionRequest) -> dict:
     """OpenAI-compatible stub — runs educational simulator, not real LLM."""
+    engine = LLMEngine(EngineConfig(num_gpu_blocks=128, max_num_seqs=64))
     group = make_group(req.prompt, max_tokens=req.max_tokens)
-    _engine.add_request(group)
+    engine.add_request(group)
     tokens: list[int] = []
-    for out in _engine.run_until_idle(max_steps=req.max_tokens + 5):
+    for out in engine.run_until_idle(max_steps=req.max_tokens + 5):
         for tid in out.generated_tokens.values():
             tokens.append(tid)
     text = "".join(chr(t % 128) if 32 <= (t % 128) < 127 else "?" for t in tokens)

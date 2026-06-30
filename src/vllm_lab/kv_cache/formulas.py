@@ -57,6 +57,19 @@ def compute_memory_budget(
     quantization: str | None = None,
 ) -> MemoryBudgetResult:
     """Estimate num_gpu_blocks from the vLLM startup formula."""
+    if gpu_memory_gb <= 0:
+        raise ValueError("gpu_memory_gb must be > 0")
+    if not 0 < gpu_memory_utilization <= 1:
+        raise ValueError("gpu_memory_utilization must be in (0, 1]")
+    if model_weights_gb < 0:
+        raise ValueError("model_weights_gb must be >= 0")
+    if block_size < 1:
+        raise ValueError("block_size must be >= 1")
+    if tensor_parallel_size < 1:
+        raise ValueError("tensor_parallel_size must be >= 1")
+    if quantization not in {None, "awq_int4"}:
+        raise ValueError("quantization must be None or 'awq_int4'")
+
     notes: list[str] = []
     weights = model_weights_gb
     if quantization == "awq_int4":

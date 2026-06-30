@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from vllm_lab.kv_cache.block_manager import BlockSpaceManager
 from vllm_lab.kv_cache.prefix_cache import PrefixCache
 from vllm_lab.kv_cache.block_manager import hash_prefix
-from vllm_lab.types import SchedulerOutput, Sequence, SequenceGroup, SequenceStatus
+from vllm_lab.types import SchedulerOutput, Sequence, SequenceGroup, SequenceStatus, TraceEvent
 
 
 @dataclass
@@ -55,6 +55,7 @@ class Scheduler:
         scheduled: list[str] = []
         preempted: list[str] = []
         swapped_in: list[str] = []
+        trace_events: list[TraceEvent] = []
         batched_tokens = 0
 
         # Promote swapped sequences when GPU blocks free up
@@ -67,6 +68,13 @@ class Scheduler:
                 seq.status = SequenceStatus.RUNNING
                 swapped_in.append(seq.seq_id)
                 scheduled.append(seq.seq_id)
+                trace_events.append(
+                    TraceEvent(
+                        event="swap_in",
+                        seq_id=seq.seq_id,
+                        message="Swapped sequence KV blocks back to GPU memory.",
+                    )
+                )
 
         # Admit waiting sequences (FCFS)
         admitted: list[SequenceGroup] = []
@@ -77,19 +85,69 @@ class Scheduler:
             prefix_hash = hash_prefix(seq.prompt_token_ids, self.block_manager.block_size)
             cached = self.prefix_cache.lookup(prefix_hash)
             if cached:
-                seq.shared_prefix_hash = prefix_hash
-                seq.block_ids = self.block_manager.share_prefix_blocks(seq.seq_id, cached)
+                if self.block_manager.has_live_blocks(cached):
+                    needed = self.block_manager.blocks_needed(seq.num_prompt_tokens)
+                    missing = needed - len(cached)
+                    if missing > len(self.block_manager.free_gpu):
+                        break
+                    seq.shared_prefix_hash = prefix_hash
+                    seq.block_ids = self.block_manager.share_prefix_blocks(seq.seq_id, cached)
+                    self.block_manager.allocate_missing_blocks(seq.seq_id, seq.num_prompt_tokens)
+                    seq.block_ids = self.block_manager.seq_block_table[seq.seq_id]
+                    trace_events.append(
+                        TraceEvent(
+                            event="cache_hit",
+                            seq_id=seq.seq_id,
+                            group_id=group.group_id,
+                            message="Reused live prefix KV blocks from prefix cache.",
+                            data={"prefix_hash": prefix_hash, "shared_blocks": cached},
+                        )
+                    )
+                else:
+                    self.prefix_cache.invalidate(prefix_hash)
+                    trace_events.append(
+                        TraceEvent(
+                            event="cache_stale",
+                            seq_id=seq.seq_id,
+                            group_id=group.group_id,
+                            message="Dropped a prefix-cache entry that no longer referenced live blocks.",
+                            data={"prefix_hash": prefix_hash},
+                        )
+                    )
+                    blocks = self.block_manager.allocate(seq.seq_id, seq.num_prompt_tokens)
+                    if blocks is None:
+                        break
+                    seq.block_ids = blocks
+                    self.prefix_cache.register(prefix_hash, blocks[: max(1, len(blocks) // 2)])
             else:
                 blocks = self.block_manager.allocate(seq.seq_id, seq.num_prompt_tokens)
                 if blocks is None:
                     break
                 seq.block_ids = blocks
                 self.prefix_cache.register(prefix_hash, blocks[: max(1, len(blocks) // 2)])
+                trace_events.append(
+                    TraceEvent(
+                        event="cache_miss",
+                        seq_id=seq.seq_id,
+                        group_id=group.group_id,
+                        message="Allocated prompt KV blocks and registered a reusable prefix.",
+                        data={"prefix_hash": prefix_hash, "blocks": blocks},
+                    )
+                )
             seq.status = SequenceStatus.RUNNING
             self.running.append(seq)
             scheduled.append(seq.seq_id)
             batched_tokens += seq.num_total_tokens
             admitted.append(group)
+            trace_events.append(
+                TraceEvent(
+                    event="admit",
+                    seq_id=seq.seq_id,
+                    group_id=group.group_id,
+                    message="Admitted waiting sequence to the running batch.",
+                    data={"prompt_tokens": seq.num_prompt_tokens},
+                )
+            )
 
         for g in admitted:
             self.waiting.remove(g)
@@ -108,9 +166,25 @@ class Scheduler:
                     self.running.remove(victim)
                     self.swapped.append(victim)
                     preempted.append(victim.seq_id)
+                    trace_events.append(
+                        TraceEvent(
+                            event="preempt",
+                            seq_id=victim.seq_id,
+                            message="Preempted a running sequence and swapped its KV blocks to CPU memory.",
+                            data={"protected_seq_id": seq.seq_id},
+                        )
+                    )
                     blocks = self.block_manager.append_token(seq.seq_id, new_total)
             if blocks:
                 batched_tokens += 1
+                trace_events.append(
+                    TraceEvent(
+                        event="decode_slot",
+                        seq_id=seq.seq_id,
+                        message="Reserved capacity for one decode token.",
+                        data={"total_tokens": new_total, "blocks": blocks},
+                    )
+                )
 
         return SchedulerOutput(
             scheduled_seq_ids=scheduled,
@@ -122,6 +196,7 @@ class Scheduler:
                 "running": len(self.running),
                 "swapped": len(self.swapped),
             },
+            trace_events=trace_events,
         )
 
     def _pick_preemption_victim(self, protected: Sequence) -> Sequence | None:

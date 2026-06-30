@@ -23,6 +23,9 @@ class PrefixCache:
     def register(self, prefix_hash: str, block_ids: list[int]) -> None:
         self.entries[prefix_hash] = list(block_ids)
 
+    def invalidate(self, prefix_hash: str) -> None:
+        self.entries.pop(prefix_hash, None)
+
     @property
     def hit_rate(self) -> float:
         total = self.hits + self.misses

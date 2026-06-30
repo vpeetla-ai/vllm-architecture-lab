@@ -26,5 +26,5 @@ class AsyncLLMEngine:
             if out is None:
                 break
             yield out
-            if not self.engine.scheduler.running and not self.engine.scheduler.waiting:
+            if not self.engine.scheduler.running and not self.engine.scheduler.waiting and not self.engine.scheduler.swapped:
                 break
