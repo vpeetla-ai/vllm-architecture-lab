@@ -22,7 +22,7 @@ git clone https://github.com/vpeetla-ai/vpeetla-ai-skills.git
 
 [▶ Live demo](https://vllm-architecture-lab.vercel.app) · [API](https://vllm-architecture-lab-api.onrender.com/health) · [Architecture tabs](demo/index.html) · [venkat-ai.com/work](https://venkat-ai.com/work)
 
----
+**Portfolio:** [Case study](https://github.com/vpeetla-ai/ai-architecture-portfolio/blob/main/case-studies/vllm-architecture-lab.md) · [Architecture](docs/ARCHITECTURE.md) · [Product / tradeoffs](docs/PRODUCT.md)
 
 ## What you'll learn
 
