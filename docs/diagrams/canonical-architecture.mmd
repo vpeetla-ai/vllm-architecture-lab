@@ -1,0 +1,21 @@
+flowchart TB
+  Client["Client / OpenAI API shape"] --> Engine["AsyncLLMEngine"]
+  Engine --> Scheduler["Continuous batching scheduler<br/>waiting · running · swapped"]
+  Scheduler --> KV["PagedAttention<br/>BlockSpaceManager"]
+  KV --> Worker["Worker / Sampler"]
+
+  subgraph edu["Educational simulator — this repo"]
+    Engine
+    Scheduler
+    KV
+  end
+
+  subgraph prod["Production target — vLLM 0.15+"]
+    LORA["Multi-LoRA adapter swap<br/>hundreds of adapters / GPU"]
+    MOE["MoE models GPT-OSS · Qwen3 · DeepSeek"]
+    LORA --> MOE
+  end
+
+  DF["DomainForge adapters<br/>QLoRA + DPO registry"] -.->|"ADR-022 planned"| LORA
+
+  Worker --> Tokens["Token stream"]
