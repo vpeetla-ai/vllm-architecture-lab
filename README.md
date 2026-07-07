@@ -129,7 +129,9 @@ Open `demo/index.html` locally or deploy to Vercel. Set `demo/config.js` → `VL
 | Layer | Host | URL |
 |-------|------|-----|
 | UI | Vercel | https://vllm-architecture-lab.vercel.app |
-| API | Render | https://vllm-architecture-lab-api.onrender.com |
+| API | Render | https://vllm-architecture-lab-api.onrender.com — cold start ~30s on free tier |
+
+> **First-run note:** The Render API sleeps after inactivity on the free tier. The first request after idle takes ~30s to wake; the UI simulator runs client-side and works without the API.
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/vpeetla-ai/vllm-architecture-lab)
 
