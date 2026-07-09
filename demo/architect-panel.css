@@ -267,3 +267,34 @@
 .api-hint {
   color: var(--vp-text-muted);
 }
+
+.ao-jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--vp-border);
+  border-radius: 8px;
+  background: var(--vp-surface);
+}
+.ao-jump a {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--vp-text-secondary);
+  text-decoration: none;
+  padding: 0.25rem 0.55rem;
+  border-radius: 6px;
+}
+.ao-jump a:hover { background: var(--vp-surface-hover); color: var(--vp-text); }
+#ao-stack, #ao-tradeoffs, #ao-adrs, #ao-metrics { scroll-margin-top: 5rem; }
+.ao-metrics-failed { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-top: 0.5rem; }
+.ao-metrics-failed button.secondary {
+  background: transparent;
+  border: 1px solid var(--vp-border);
+  color: var(--vp-text);
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}

@@ -1,4 +1,6 @@
-/** Tabbed workbench for static demos — product first, architecture second. */
+/** Tabbed workbench for static demos — product first, architecture second.
+ * Principal UX: section jump links + metrics Loading/Live/Failed+Retry.
+ */
 (function () {
   const cfg = window.ARCHITECT_CONFIG;
   if (!cfg) return;
@@ -47,7 +49,9 @@
   function renderDocLinks(root) {
     const links = [].concat(cfg.adrLinks || [], cfg.docsLinks || []);
     if (!links.length) return;
-    root.appendChild(el("h2", "ao-title", "Architecture record"));
+    const wrap = el("div", "");
+    wrap.id = "ao-adrs";
+    wrap.appendChild(el("h2", "ao-title", "Architecture record"));
     const ul = el("ul", "arch-doc-links");
     links.forEach((link) => {
       const li = document.createElement("li");
@@ -59,10 +63,12 @@
       li.appendChild(a);
       ul.appendChild(li);
     });
-    root.appendChild(ul);
+    wrap.appendChild(ul);
+    root.appendChild(wrap);
   }
 
   function renderMetrics(root, data) {
+    root.innerHTML = "";
     const labels = cfg.metricLabels || {};
     const grid = el("div", "arch-metrics");
     const cards = [
@@ -86,6 +92,19 @@
     );
   }
 
+  function renderMetricsFailed(root, retry) {
+    root.innerHTML = "";
+    const wrap = el("div", "ao-metrics-failed");
+    wrap.appendChild(
+      el("p", "muted", "Metrics unavailable — API may be waking from idle (~30s on free tier).")
+    );
+    const btn = el("button", "secondary", "Retry");
+    btn.type = "button";
+    btn.addEventListener("click", retry);
+    wrap.appendChild(btn);
+    root.appendChild(wrap);
+  }
+
   function normalize(data) {
     return {
       total_runs: data.total_runs ?? data.sample_size ?? data.total ?? 0,
@@ -98,22 +117,62 @@
   function buildArchitecturePanel() {
     const panel = el("section", "panel architect-panel workbench-arch-panel");
     panel.hidden = true;
-    panel.appendChild(el("p", "eyebrow", "Eagle-eye architecture"));
-    panel.appendChild(el("h2", "ao-title", "How the system is wired"));
-    panel.appendChild(el("p", "lede", cfg.tagline));
-    renderLayers(panel);
-    panel.appendChild(el("h2", "ao-title", "Principal tradeoffs"));
-    renderTradeoffs(panel);
+
+    const hasDocs = (cfg.adrLinks || []).length + (cfg.docsLinks || []).length > 0;
+    const jump = el("nav", "ao-jump");
+    jump.setAttribute("aria-label", "Architecture sections");
+    [
+      ["#ao-stack", "Stack"],
+      ["#ao-tradeoffs", "Tradeoffs"],
+      ...(hasDocs ? [["#ao-adrs", "ADRs"]] : []),
+      ["#ao-metrics", "Metrics"],
+    ].forEach(([href, label]) => {
+      const a = document.createElement("a");
+      a.href = href;
+      a.textContent = label;
+      jump.appendChild(a);
+    });
+    panel.appendChild(jump);
+
+    const stack = el("div", "");
+    stack.id = "ao-stack";
+    stack.appendChild(el("p", "eyebrow", "Eagle-eye architecture"));
+    stack.appendChild(el("h2", "ao-title", "How the system is wired"));
+    stack.appendChild(el("p", "lede", cfg.tagline));
+    renderLayers(stack);
+    panel.appendChild(stack);
+
+    const trade = el("div", "");
+    trade.id = "ao-tradeoffs";
+    trade.appendChild(el("h2", "ao-title", "Principal tradeoffs"));
+    renderTradeoffs(trade);
+    panel.appendChild(trade);
+
     renderDocLinks(panel);
-    panel.appendChild(el("h2", "ao-title", "Production metrics"));
+
+    const metricsWrap = el("div", "");
+    metricsWrap.id = "ao-metrics";
+    metricsWrap.appendChild(el("h2", "ao-title", "Production metrics"));
     const metricsSlot = el("div", "arch-metrics-slot");
-    panel.appendChild(metricsSlot);
-    if (cfg.metricsUrl) {
+    metricsSlot.appendChild(el("p", "muted", "Loading live metrics…"));
+    metricsWrap.appendChild(metricsSlot);
+    panel.appendChild(metricsWrap);
+
+    function loadMetrics() {
+      if (!cfg.metricsUrl) {
+        metricsSlot.innerHTML = "";
+        metricsSlot.appendChild(el("p", "muted", "No metrics URL configured."));
+        return;
+      }
+      metricsSlot.innerHTML = "";
+      metricsSlot.appendChild(el("p", "muted", "Loading live metrics…"));
       fetch(cfg.metricsUrl, { cache: "no-store" })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data) => data && renderMetrics(metricsSlot, normalize(data)))
-        .catch(() => null);
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then((data) => renderMetrics(metricsSlot, normalize(data)))
+        .catch(() => renderMetricsFailed(metricsSlot, loadMetrics));
     }
+    loadMetrics();
+
     return panel;
   }
 
@@ -135,7 +194,8 @@
 
     const btnProduct = el("button", "workbench-tab is-active", "");
     btnProduct.type = "button";
-    btnProduct.innerHTML = '<span class="workbench-tab__label">Live product</span><span class="workbench-tab__hint">Run the demo</span>';
+    btnProduct.innerHTML =
+      '<span class="workbench-tab__label">Live product</span><span class="workbench-tab__hint">Run the demo</span>';
 
     const btnArch = el("button", "workbench-tab", "");
     btnArch.type = "button";
@@ -148,7 +208,6 @@
     const archPanel = buildArchitecturePanel();
 
     if (productRoot) {
-      const mountPoint = hero ? hero.nextSibling : main.firstChild;
       if (hero && hero.nextSibling) main.insertBefore(tabs, hero.nextSibling);
       else main.insertBefore(tabs, main.firstChild);
       main.appendChild(archPanel);
@@ -166,7 +225,6 @@
       return;
     }
 
-    // Legacy: wrap panels after architect-root
     const legacyRoot = document.getElementById("architect-root");
     if (legacyRoot) legacyRoot.remove();
     if (hero) hero.parentNode.insertBefore(tabs, hero.nextSibling);
