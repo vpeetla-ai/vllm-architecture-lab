@@ -177,6 +177,19 @@
   }
 
   function mount() {
+    // vLLM already has product tabs (Live simulator / KV / …) — skip duplicate workbench tabs.
+    if (cfg.skipWorkbenchTabs) {
+      const host =
+        document.getElementById("view-arch") ||
+        document.getElementById("workbench-product") ||
+        document.body;
+      const archPanel = buildArchitecturePanel();
+      archPanel.hidden = false;
+      archPanel.style.marginTop = "24px";
+      host.appendChild(archPanel);
+      return;
+    }
+
     const productRoot = document.getElementById("workbench-product");
     const main =
       document.querySelector("main.shell, main.app-main, main") ||

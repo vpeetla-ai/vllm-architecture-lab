@@ -1,12 +1,14 @@
 window.VLLM_LAB_API = window.VLLM_LAB_API || "https://vllm-architecture-lab-api.onrender.com";
 window.ARCHITECT_CONFIG = {
+  // Product already has Architecture / KV / Batching tabs — don't inject a second Architecture workbench tab.
+  skipWorkbenchTabs: true,
   tagline:
     "Educational vLLM inference simulator — PagedAttention block allocator, continuous batching scheduler, and KV memory budget formulas for principal-level interviews.",
   metricsUrl: window.VLLM_LAB_API + "/v1/ops/metrics",
   metricsPath: "/v1/ops/metrics",
   metricLabels: { runs: "Engine steps", entities: "KV blocks allocated", latency: "P95 latency" },
   layers: [
-    { tier: "L1", name: "Explorer UI", role: "Interactive teaching", components: ["Architecture tabs", "Live simulator", "Memory budget"] },
+    { tier: "L1", name: "Explorer UI", role: "Interactive teaching", components: ["Live simulator", "KV / Batching / Memory tabs", "Memory budget"] },
     { tier: "L2", name: "Engine core", role: "Scheduling semantics", components: ["Block manager", "Continuous batching", "Preemption"] },
     { tier: "L3", name: "KV cache", role: "Memory math", components: ["PagedAttention", "Block tables", "Prefix cache"] },
     { tier: "L4", name: "Ops", role: "Portfolio proof", components: ["/v1/ops/metrics", "Golden eval CI", "SLO.md"] },
