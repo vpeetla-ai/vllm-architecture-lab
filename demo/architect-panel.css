@@ -1,4 +1,16 @@
-/* Architecture panel + workbench tabs — light enterprise theme (matches styles.css --vp-*) */
+/* Architecture panel + workbench tabs — dark theme (matches vLLM dark silicon shell) */
+
+:root {
+  --vp-bg: #04040d;
+  --vp-surface: #0c0c1a;
+  --vp-surface-hover: #101020;
+  --vp-border: #222240;
+  --vp-text: #d8dbf0;
+  --vp-text-secondary: #9aa0c4;
+  --vp-text-muted: #50507a;
+  --vp-accent: #00ffcc;
+  --vp-accent-hover: #5dffdd;
+}
 
 .architect-panel {
   margin-top: 0;
@@ -6,12 +18,12 @@
 
 .architect-panel .eyebrow,
 .page-hero .eyebrow {
-  color: var(--vp-text-muted, #64748b);
+  color: var(--vp-text-muted);
   letter-spacing: 0.14em;
 }
 
 .page-hero h1 {
-  color: var(--vp-text, #0f172a);
+  color: var(--vp-text);
 }
 
 .arch-layers {
@@ -24,9 +36,9 @@
   display: grid;
   gap: 0.5rem;
   padding: 1rem;
-  border: 1px solid var(--vp-border, #e2e8f0);
+  border: 1px solid var(--vp-border);
   border-radius: 12px;
-  background: var(--vp-surface-hover, #f8fafc);
+  background: var(--vp-surface-hover);
 }
 
 @media (min-width: 768px) {
@@ -41,7 +53,7 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--vp-accent, #2563eb);
+  color: var(--vp-accent);
 }
 
 .arch-mid {
@@ -51,7 +63,7 @@
 }
 
 .arch-mid .muted {
-  color: var(--vp-text-muted, #64748b);
+  color: var(--vp-text-muted);
   font-size: 0.8rem;
 }
 
@@ -65,9 +77,9 @@
   font-size: 0.72rem;
   padding: 0.2rem 0.5rem;
   border-radius: 6px;
-  border: 1px solid var(--vp-border, #e2e8f0);
-  background: var(--vp-surface, #ffffff);
-  color: var(--vp-text-secondary, #475569);
+  border: 1px solid var(--vp-border);
+  background: var(--vp-surface);
+  color: var(--vp-text-secondary);
 }
 
 .arch-tradeoffs {
@@ -85,24 +97,24 @@
 .arch-tradeoff {
   padding: 1rem;
   border-radius: 12px;
-  border: 1px solid var(--vp-border, #e2e8f0);
-  background: var(--vp-surface, #ffffff);
+  border: 1px solid var(--vp-border);
+  background: var(--vp-surface);
 }
 
 .arch-tradeoff p {
   margin: 0.35rem 0 0;
   font-size: 0.875rem;
-  color: var(--vp-text-secondary, #475569);
+  color: var(--vp-text-secondary);
   line-height: 1.5;
 }
 
 .arch-tradeoff .gain {
-  color: #047857;
+  color: #00ff88;
   font-weight: 600;
 }
 
 .arch-tradeoff .trade {
-  color: #b45309;
+  color: #ffd700;
   font-weight: 600;
 }
 
@@ -122,8 +134,8 @@
 .arch-metric {
   padding: 1rem;
   border-radius: 12px;
-  border: 1px solid var(--vp-border, #e2e8f0);
-  background: var(--vp-surface-hover, #f8fafc);
+  border: 1px solid var(--vp-border);
+  background: var(--vp-surface-hover);
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
@@ -132,22 +144,23 @@
 .arch-metric span {
   font-size: 0.75rem;
   font-weight: 500;
-  color: var(--vp-text-muted, #64748b);
+  color: var(--vp-text-muted);
 }
 
 .arch-metric strong {
   font-size: 1.5rem;
   font-weight: 600;
-  color: var(--vp-text, #0f172a);
+  color: var(--vp-text);
   font-variant-numeric: tabular-nums;
 }
 
-/* Workbench tabs */
+/* Workbench tabs — sit under LoopForge header */
 .workbench-tabs {
   display: flex;
   gap: 0.35rem;
-  margin: 0 0 1.25rem;
-  border-bottom: 1px solid var(--vp-border, #e2e8f0);
+  margin: 0.75rem 24px 1rem;
+  border-bottom: 1px solid var(--vp-border);
+  max-width: calc(100% - 48px);
 }
 
 .workbench-tab {
@@ -159,20 +172,20 @@
   background: transparent;
   cursor: pointer;
   text-align: left;
-  color: var(--vp-text-muted, #64748b);
+  color: var(--vp-text-muted);
   font-family: inherit;
 }
 
 .workbench-tab:hover {
-  background: var(--vp-surface-hover, #f8fafc);
-  color: var(--vp-text-secondary, #475569);
+  background: var(--vp-surface-hover);
+  color: var(--vp-text-secondary);
 }
 
 .workbench-tab.is-active {
-  background: var(--vp-surface, #ffffff);
-  border-color: var(--vp-border, #e2e8f0);
-  border-bottom-color: var(--vp-surface, #ffffff);
-  color: var(--vp-text, #0f172a);
+  background: var(--vp-surface);
+  border-color: var(--vp-border);
+  border-bottom-color: var(--vp-surface);
+  color: var(--vp-text);
 }
 
 .workbench-tab__label {
@@ -185,11 +198,7 @@
   display: block;
   font-size: 0.65rem;
   margin-top: 0.1rem;
-  color: var(--vp-text-muted, #64748b);
-}
-
-.workbench-tab.is-active .workbench-tab__hint {
-  color: var(--vp-text-muted, #64748b);
+  color: var(--vp-text-muted);
 }
 
 .workbench-tab.is-active::after {
@@ -199,18 +208,18 @@
   right: 0;
   bottom: 0;
   height: 2px;
-  background: var(--vp-accent, #2563eb);
+  background: var(--vp-accent);
 }
 
 .ao-title {
   font-size: 1.05rem;
   font-weight: 600;
   margin: 1.25rem 0 0.5rem;
-  color: var(--vp-text, #0f172a);
+  color: var(--vp-text);
 }
 
 .ao-layer-name {
-  color: var(--vp-text, #0f172a);
+  color: var(--vp-text);
   font-weight: 600;
 }
 
@@ -218,7 +227,15 @@
   display: block;
   margin-bottom: 0.35rem;
   font-weight: 600;
-  color: var(--vp-text, #0f172a);
+  color: var(--vp-text);
+}
+
+.workbench-arch-panel {
+  margin: 0 24px 2rem;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--vp-border);
+  border-radius: 12px;
+  background: var(--vp-surface);
 }
 
 .workbench-arch-panel[hidden],
@@ -238,10 +255,15 @@
 .arch-doc-links a {
   font-size: 0.875rem;
   font-weight: 500;
-  color: var(--vp-accent, #2563eb);
+  color: var(--vp-accent);
   text-decoration: none;
 }
 
 .arch-doc-links a:hover {
   text-decoration: underline;
+}
+
+.muted,
+.api-hint {
+  color: var(--vp-text-muted);
 }
