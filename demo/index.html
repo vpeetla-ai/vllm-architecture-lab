@@ -33,6 +33,8 @@
 
   --mono:    'IBM Plex Mono', monospace;
   --sans:    'IBM Plex Sans', system-ui, sans-serif;
+  --surface: var(--s2);
+  --accent:  var(--gpu);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -316,6 +318,10 @@ body {
 }
 .pulse { animation: pulse-glow 2.5s ease-in-out infinite; }
 </style>
+<link rel="stylesheet" href="architect-panel.css" />
+<script src="config.js"></script>
+<script src="architect-config.js"></script>
+<script src="architect-panel.js"></script>
 </head>
 <body>
 
@@ -339,6 +345,8 @@ body {
     <a href="https://github.com/vpeetla-ai/vllm-architecture-lab" style="margin-left:12px;font-size:0.72rem;color:var(--gpu);text-decoration:none;align-self:center">GitHub ↗</a>
   </div>
 </div>
+
+<div id="workbench-product">
 
 <!-- ══════════════════ ARCHITECTURE ══════════════════ -->
 <div id="view-arch" class="view on">
@@ -1017,6 +1025,8 @@ num_blocks = avail // (block_size × kv_size)<br><br>
       </div>
     </div>
   </div>
+
+</div>
 
 </div>
 
