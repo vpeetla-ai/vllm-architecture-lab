@@ -159,6 +159,19 @@ docs/ARCHITECTURE.md
 
 ---
 
+## Interview map
+
+**Business function:** Educational LLM serving lab — PagedAttention, continuous batching, KV-cache economics.
+
+Staff+ prep crosswalk — [playbook](https://github.com/vpeetla-ai/ai-architect-interview-playbook) · [study UI](https://ai-architect-interview-playbook-9xs.vercel.app) · [Practice Arena](https://ai-architect-practice-arena.vercel.app) · [org matrix](https://github.com/vpeetla-ai/ai-architecture-portfolio/blob/main/docs/REPO_INTERVIEW_MAP.md). Only entries this repo honestly exercises.
+
+| Category | Entry | Fit |
+|----------|-------|-----|
+| System design | [LLM inference serving at scale](https://ai-architect-interview-playbook-9xs.vercel.app/q/ai-system-design/01-llm-inference-serving-at-scale) ([md](https://github.com/vpeetla-ai/ai-architect-interview-playbook/blob/main/ai-system-design/01-llm-inference-serving-at-scale.md)) | Primary map — paging, batching, KV |
+| Cloud | [GPU capacity planning](https://ai-architect-interview-playbook-9xs.vercel.app/q/cloud-architecture/01-gpu-capacity-planning-and-procurement) ([md](https://github.com/vpeetla-ai/ai-architect-interview-playbook/blob/main/cloud-architecture/01-gpu-capacity-planning-and-procurement.md)) | Partial — capacity framing for serving fleets |
+| Cloud | [Orchestration & cost optimization](https://ai-architect-interview-playbook-9xs.vercel.app/q/cloud-architecture/06-container-orchestration-and-cost-optimization-at-scale) ([md](https://github.com/vpeetla-ai/ai-architect-interview-playbook/blob/main/cloud-architecture/06-container-orchestration-and-cost-optimization-at-scale.md)) | Partial — serving cost / utilization story |
+| Trade-offs | [Build vs train vs fine-tune](https://ai-architect-interview-playbook-9xs.vercel.app/q/scalability-governance-tradeoffs/04-build-vs-train-vs-finetune-foundation-model-strategy) ([md](https://github.com/vpeetla-ai/ai-architect-interview-playbook/blob/main/scalability-governance-tradeoffs/04-build-vs-train-vs-finetune-foundation-model-strategy.md)) | Partial — multi-LoRA serving economics (ADR-022) |
+
 ## Connect
 
 - Part of [vpeetla-ai](https://github.com/vpeetla-ai) reference stack
