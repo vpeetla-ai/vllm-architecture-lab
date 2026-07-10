@@ -47,6 +47,25 @@ class CompletionRequest(BaseModel):
     stream: bool = False
 
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatCompletionRequest(BaseModel):
+    model: str = "domainforge-triage-v0"
+    messages: list[ChatMessage]
+    max_tokens: int = Field(default=64, ge=1, le=256)
+    temperature: float = Field(default=0.0, ge=0)
+
+
+# Educational multi-LoRA registry (ADR-022 Path B demo slice — not CUDA LoRA kernels).
+ADAPTER_REGISTRY = [
+    {"id": "domainforge-triage-v0", "status": "promoted", "base_model": "vllm-lab-simulator"},
+    {"id": "domainforge-triage-dpo-v0", "status": "registered", "base_model": "vllm-lab-simulator"},
+]
+
+
 MODELS = {"llama-3-8b": LLAMA3_8B, "llama-3-70b": LLAMA3_70B}
 
 
@@ -167,4 +186,53 @@ def openai_completions(req: CompletionRequest) -> dict:
         "model": "vllm-lab-simulator",
         "choices": [{"text": text or "[simulated decode]", "index": 0, "finish_reason": "length"}],
         "usage": {"prompt_tokens": group.sequences[0].num_prompt_tokens, "completion_tokens": len(tokens), "total_tokens": group.sequences[0].num_prompt_tokens + len(tokens)},
+    }
+
+
+@app.get("/v1/adapters")
+def list_adapters() -> dict:
+    """Mock multi-LoRA adapter registry for DomainForge Path B demos (ADR-022)."""
+    return {"object": "list", "data": ADAPTER_REGISTRY}
+
+
+@app.post("/v1/chat/completions")
+def openai_chat_completions(req: ChatCompletionRequest) -> dict:
+    """OpenAI-compatible chat stub with adapter/model id — educational multi-LoRA swap."""
+    adapter_ids = {a["id"] for a in ADAPTER_REGISTRY}
+    model = req.model if req.model in adapter_ids or req.model == "base" else "domainforge-triage-v0"
+    user_bits = [m.content for m in req.messages if m.role == "user"]
+    prompt = user_bits[-1] if user_bits else "triage"
+    # Deterministic structured stub DomainForge can validate as triage JSON.
+    triage = {
+        "intent": "password_reset" if "password" in prompt.lower() else "general_inquiry",
+        "category": "account_access" if "password" in prompt.lower() else "general",
+        "priority": "medium",
+        "entities": {},
+        "suggested_action": "verify_identity_then_send_reset_link"
+        if "password" in prompt.lower()
+        else "gather_more_details",
+        "cite_faq_ids": [],
+        "confidence": 0.81,
+        "summary": f"[vllm-lab adapter={model}] educational multi-LoRA decode",
+    }
+    import json as _json
+
+    content = _json.dumps(triage)
+    return {
+        "id": f"chatcmpl-{model}",
+        "object": "chat.completion",
+        "model": model,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {
+            "prompt_tokens": max(1, len(prompt) // 4),
+            "completion_tokens": max(1, len(content) // 4),
+            "total_tokens": max(2, (len(prompt) + len(content)) // 4),
+        },
+        "adapter_swapped": model in adapter_ids,
     }
