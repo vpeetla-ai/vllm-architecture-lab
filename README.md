@@ -26,7 +26,7 @@ git clone https://github.com/vpeetla-ai/vpeetla-ai-skills.git
 
 [▶ Live demo](https://vllm-architecture-lab.vercel.app) · [API](https://vllm-architecture-lab-api.onrender.com/health) · [Architecture tabs](demo/index.html) · [venkat-ai.com/work](https://venkat-ai.com/work)
 
-**Portfolio:** [Case study](https://github.com/vpeetla-ai/ai-architecture-portfolio/blob/main/case-studies/vllm-architecture-lab.md) · [Architecture](docs/ARCHITECTURE.md) · [ADR-022 multi-LoRA target](https://github.com/vpeetla-ai/ai-architecture-portfolio/blob/main/adr/ADR-022-domainforge-vllm-multi-lora-serving.md)
+**Portfolio:** [Case study](https://github.com/vpeetla-ai/ai-architecture-portfolio/blob/main/case-studies/vllm-architecture-lab.md) · [Architecture](docs/ARCHITECTURE.md) · [ADR-022 Path B (educational multi-LoRA)](https://github.com/vpeetla-ai/ai-architecture-portfolio/blob/main/adr/ADR-022-domainforge-vllm-multi-lora-serving.md)
 
 ## Architecture
 
@@ -38,7 +38,8 @@ flowchart TB
   Engine --> Scheduler["Continuous batching"]
   Scheduler --> KV["PagedAttention"]
   KV --> Worker["Worker / Sampler"]
-  DF["DomainForge adapters"] -.->|"ADR-022 planned"| LORA["vLLM multi-LoRA"]
+  DF["DomainForge adapters"] -.->|"Path B shipped"| LORA["/v1/chat + /v1/adapters<br/>not CUDA LoRA"]
+  LORA -.->|"upstream vLLM"| CUDA["Real multi-LoRA kernels"]
 ```
 
 ## What you'll learn
@@ -57,12 +58,12 @@ flowchart TB
 ## 60-second architecture
 
 ```text
-Client → FastAPI (/v1/completions, /api/simulate)
+Client → FastAPI (/v1/completions, /v1/chat/completions, /v1/adapters, /api/simulate)
       → AsyncLLMEngine
       → Scheduler (FCFS, preemption, swap)
       → BlockSpaceManager (PagedAttention pages)
       → Worker/Sampler (stub — no CUDA required)
-      → token stream
+      → token stream (+ optional educational adapter swap)
 ```
 
 Interactive explorer: **5 tabs** — Architecture · KV Cache · Batching · Memory · FDE Relevance.
@@ -103,6 +104,7 @@ Open `demo/index.html` locally or deploy to Vercel. Set `demo/config.js` → `VL
 | KV budget formulas | **Implemented** | Llama-3 8B/70B, AWQ, TP |
 | LLMEngine step loop | **Implemented** | educational token stub |
 | FastAPI + OpenAI stub | **Implemented** | `/v1/completions`, `/api/simulate` |
+| Educational multi-LoRA Path B | **Implemented** | `/v1/chat/completions` + `/v1/adapters` (ADR-022 — not CUDA) |
 | Interactive HTML explorer | **Implemented** | 5-tab architecture UI |
 | PagedAttention CUDA kernel | **Conceptual** | documented, not implemented |
 | FlashAttention / real model | **Conceptual** | use upstream vLLM for prod |
@@ -121,6 +123,8 @@ Open `demo/index.html` locally or deploy to Vercel. Set `demo/config.js` → `VL
 | `GET /api/snapshot` | KV blocks + queue state |
 | `POST /api/memory/budget` | GPU KV budget calculator |
 | `POST /v1/completions` | OpenAI-compatible stub |
+| `POST /v1/chat/completions` | Educational chat + optional `lora` adapter id (Path B) |
+| `GET/POST /v1/adapters` | Register/list educational LoRA adapters |
 
 ---
 

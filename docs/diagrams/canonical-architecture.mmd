@@ -10,12 +10,15 @@ flowchart TB
     KV
   end
 
-  subgraph prod["Production target — vLLM 0.15+"]
-    LORA["Multi-LoRA adapter swap<br/>hundreds of adapters / GPU"]
-    MOE["MoE models GPT-OSS · Qwen3 · DeepSeek"]
-    LORA --> MOE
+  subgraph pathb["ADR-022 Path B — educational (this API)"]
+    LORA["/v1/chat/completions + /v1/adapters<br/>not CUDA multi-LoRA"]
   end
 
-  DF["DomainForge adapters<br/>QLoRA + DPO registry"] -.->|"ADR-022 planned"| LORA
+  subgraph target["Upstream production target — real vLLM"]
+    CUDA["CUDA multi-LoRA · MoE · FlashAttention"]
+  end
+
+  DF["DomainForge adapters<br/>QLoRA + DPO registry"] -.->|"Path B shipped"| LORA
+  LORA -.->|"not this lab"| CUDA
 
   Worker --> Tokens["Token stream"]
