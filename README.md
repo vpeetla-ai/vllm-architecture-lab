@@ -92,6 +92,8 @@ pytest -q
 
 Open `demo/index.html` locally or deploy to Vercel. Set `demo/config.js` → `VLLM_LAB_API` to your Render API URL for live sim.
 
+The default **Glass-box** tab is a three-column workbench: the architecture stack + live `/v1/ops/metrics` on the left, an honest engine-trace pipeline replay (Schedule → KV cache → Decode → Sample → Finish, mapped from real `steps[].trace` events) in the center, and the simulator/KV-budget/LoRA product on the right. It shows event counts and engine steps only — no invented wall-clock latency, since the engine is pure Python.
+
 ---
 
 ## Implementation status
@@ -105,7 +107,8 @@ Open `demo/index.html` locally or deploy to Vercel. Set `demo/config.js` → `VL
 | LLMEngine step loop | **Implemented** | educational token stub |
 | FastAPI + OpenAI stub | **Implemented** | `/v1/completions`, `/api/simulate` |
 | Educational multi-LoRA Path B | **Implemented** | `/v1/chat/completions` + `/v1/adapters` (ADR-022 — not CUDA) |
-| Interactive HTML explorer | **Implemented** | 5-tab architecture UI |
+| Glass-box workbench UX | **Implemented** | 3-column: architecture rail + live SLOs · honest engine-trace pipeline replay · simulator product |
+| Interactive HTML explorer | **Implemented** | Architecture / KV / Batching / Memory / FDE tabs |
 | PagedAttention CUDA kernel | **Conceptual** | documented, not implemented |
 | FlashAttention / real model | **Conceptual** | use upstream vLLM for prod |
 | Tensor parallel / Ray | **Conceptual** | topology in Memory tab |

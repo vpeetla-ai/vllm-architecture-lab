@@ -317,6 +317,133 @@ body {
   50%      { box-shadow: 0 0 8px 2px currentColor; }
 }
 .pulse { animation: pulse-glow 2.5s ease-in-out infinite; }
+
+/* ══════════════════════════════════════════
+   GLASS-BOX WORKBENCH (rail · pipeline · product)
+══════════════════════════════════════════ */
+.gb-workbench {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr) 380px;
+  gap: 16px;
+  align-items: start;
+  max-width: 1440px;
+}
+.gb-rail, .gb-center, .gb-product {
+  background: var(--s2);
+  border: 1px solid var(--border2);
+  border-radius: 12px;
+}
+
+/* ── Left rail ── */
+.gb-rail {
+  padding: 14px 14px 16px;
+  font-size: 0.72rem;
+  position: sticky; top: 72px;
+  max-height: calc(100vh - 92px); overflow: auto;
+}
+.gb-rail-lede { font-size: 0.68rem; color: var(--muted); line-height: 1.55; margin-bottom: 12px; }
+.gb-rail-title {
+  font-size: 0.58rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--muted); font-family: var(--mono); margin: 14px 0 8px;
+}
+.gb-rail-title:first-of-type { margin-top: 0; }
+.gb-stack-layer { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.gb-stack-tier { font-size: 0.54rem; font-weight: 800; color: var(--gpu); font-family: var(--mono); letter-spacing: 0.06em; }
+.gb-stack-name { font-weight: 700; font-size: 0.74rem; color: var(--text); line-height: 1.25; }
+.gb-stack-role { color: var(--muted); font-size: 0.64rem; line-height: 1.35; }
+.gb-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.gb-metric { background: var(--s3); border: 1px solid var(--border2); border-radius: 7px; padding: 6px 8px; }
+.gb-metric span { display: block; font-size: 0.52rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-family: var(--mono); }
+.gb-metric strong { font-size: 0.95rem; font-weight: 700; color: var(--text); font-family: var(--mono); }
+.gb-metrics-failed { color: var(--muted); }
+.gb-retry {
+  margin-top: 6px; background: var(--s3); color: var(--gpu); border: 1px solid var(--border2);
+  padding: 5px 10px; border-radius: 6px; font-size: 0.68rem; cursor: pointer; font-weight: 700;
+}
+.gb-tradeoff { margin-top: 7px; padding: 7px 9px; background: var(--s3); border-radius: 7px; border-left: 3px solid var(--kv2); }
+.gb-tradeoff strong { display: block; font-size: 0.68rem; color: var(--text); margin-bottom: 2px; }
+.gb-tradeoff p { margin: 0; font-size: 0.62rem; color: var(--muted); line-height: 1.35; }
+.gb-adr-links { list-style: none; }
+.gb-adr-links a { display: block; font-size: 0.66rem; color: var(--gpu); text-decoration: none; padding: 3px 0; }
+.gb-adr-links a:hover { text-decoration: underline; }
+.gb-rail .muted { color: var(--muted); font-size: 0.66rem; }
+
+/* ── Center pipeline ── */
+.gb-center { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 12px; min-height: 480px; }
+.gb-center-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.gb-center-head h2 { font-size: 0.82rem; font-weight: 700; color: var(--text); }
+.gb-source-badge {
+  font-size: 0.6rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; font-family: var(--mono);
+  background: var(--s3); color: var(--muted); border: 1px solid var(--border2); text-transform: uppercase; letter-spacing: 0.05em;
+}
+.gb-source-badge.live { background: rgba(57,255,20,0.12); color: var(--api); border-color: rgba(57,255,20,0.3); }
+.gb-source-badge.running { background: rgba(255,140,66,0.12); color: var(--batch); border-color: rgba(255,140,66,0.3); }
+
+.gb-pipeline { display: flex; flex-wrap: wrap; align-items: stretch; gap: 4px; }
+.gb-agent-node {
+  --node-accent: var(--border2);
+  display: grid; grid-template-columns: auto 1fr auto; gap: 4px 8px; align-items: center;
+  flex: 1 1 120px; min-width: 120px; padding: 8px 10px;
+  border: 1.5px solid var(--border2); border-left: 3px solid var(--node-accent); border-radius: 8px;
+  background: var(--s3); transition: all 0.2s;
+}
+.gb-agent-node.gb-active { border-color: var(--node-accent); box-shadow: 0 0 14px -2px var(--node-accent); background: var(--s1); }
+.gb-agent-node.gb-done { border-color: var(--node-accent); opacity: 0.92; }
+.gb-agent-idx { font-size: 0.56rem; font-weight: 800; color: var(--muted); font-family: var(--mono); }
+.gb-agent-node strong { display: block; font-size: 0.7rem; color: var(--text); line-height: 1.2; }
+.gb-agent-node small { display: block; font-size: 0.54rem; color: var(--muted); line-height: 1.3; }
+.gb-agent-node em { font-style: normal; font-family: var(--mono); font-size: 0.6rem; color: var(--node-accent); font-weight: 700; }
+.gb-agent-arrow { align-self: center; color: var(--muted2); font-size: 0.7rem; }
+
+.gb-gate {
+  font-size: 0.72rem; padding: 8px 11px; background: var(--s3);
+  border: 1px solid var(--border2); border-left: 3px solid var(--gpu);
+  border-radius: 7px; color: var(--text); line-height: 1.5;
+}
+.gb-gate code, .gb-hint code, .gb-honest-note code { font-family: var(--mono); color: var(--kv2); font-size: 0.92em; }
+.gb-event-log {
+  font-family: var(--mono); font-size: 0.64rem; max-height: 130px; overflow: auto;
+  background: #020208; border: 1px solid var(--border2); border-radius: 7px; padding: 8px 10px; color: var(--muted);
+}
+.gb-event-log .ev-live { color: var(--api); line-height: 1.7; }
+.gb-ops-strip {
+  display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.66rem; color: var(--muted);
+  font-family: var(--mono); padding-top: 8px; border-top: 1px solid var(--border);
+}
+.gb-ops-strip strong { color: var(--text); font-weight: 700; }
+.gb-honest-note { font-size: 0.58rem; color: var(--muted); line-height: 1.5; margin-top: 2px; }
+
+/* ── Right product ── */
+.gb-product { padding: 14px 15px 16px; position: sticky; top: 72px; max-height: calc(100vh - 92px); overflow: auto; }
+.gb-guided { font-size: 0.7rem; color: var(--muted); line-height: 1.55; margin-bottom: 12px; }
+.gb-panel { margin-top: 12px; padding: 12px; background: var(--s1); border: 1px solid var(--border2); border-radius: 9px; }
+.gb-panel:first-of-type { margin-top: 0; }
+.gb-panel h3 { font-size: 0.78rem; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.gb-panel summary { font-size: 0.78rem; font-weight: 700; color: var(--text); cursor: pointer; }
+.gb-hint { font-size: 0.6rem; color: var(--muted); margin-bottom: 8px; font-family: var(--mono); }
+.gb-product input {
+  width: 100%; background: var(--s3); border: 1px solid var(--border2); color: var(--text);
+  padding: 8px 10px; border-radius: 6px; font-family: var(--mono); font-size: 0.68rem; margin-bottom: 8px;
+}
+.gb-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.gb-row input { width: 74px; margin-bottom: 0; }
+.gb-btn { flex: 1; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 700; font-size: 0.7rem; cursor: pointer; }
+.gb-btn--gpu { background: var(--gpu); color: #000; }
+.gb-btn--kv { background: var(--kv2); color: #fff; width: 100%; }
+.gb-btn--tensor { background: var(--tensor); color: #000; width: 100%; }
+.gb-out {
+  background: #020208; border: 1px solid var(--border2); border-radius: 7px; padding: 10px;
+  font-family: var(--mono); font-size: 0.6rem; line-height: 1.6; color: var(--text);
+  max-height: 200px; overflow: auto; margin-top: 8px; white-space: pre-wrap; word-break: break-word;
+}
+
+@media (max-width: 1100px) {
+  .gb-workbench { grid-template-columns: 1fr; }
+  .gb-rail, .gb-product { position: static; max-height: none; }
+  .gb-center { order: 1; }
+  .gb-product { order: 2; }
+  .gb-rail { order: 3; }
+}
 </style>
 <link rel="stylesheet" href="architect-panel.css" />
 <script src="config.js"></script>
@@ -337,7 +464,8 @@ body {
     </div>
   </div>
   <div class="tabs">
-    <button class="tab on"  onclick="sw('arch',this)">Live simulator</button>
+    <button class="tab on"  onclick="sw('glass',this)">Glass-box</button>
+    <button class="tab"     onclick="sw('arch',this)">Architecture</button>
     <button class="tab"     onclick="sw('kv',this)">KV Cache</button>
     <button class="tab"     onclick="sw('batch',this)">Batching</button>
     <button class="tab"     onclick="sw('mem',this)">Memory</button>
@@ -348,22 +476,76 @@ body {
 
 <div id="workbench-product">
 
-<!-- ══════════════════ ARCHITECTURE ══════════════════ -->
-<div id="view-arch" class="view on">
-<div class="arch-wrap">
+<!-- ══════════════════ GLASS-BOX WORKBENCH ══════════════════ -->
+<div id="view-glass" class="view on">
+<div class="gb-workbench">
 
-  <!-- Live simulator -->
-  <div class="kv-visual" style="margin-bottom:20px;max-width:1080px">
-    <div class="kv-title"><div class="kv-title-dot" style="background:var(--api)"></div>Live Engine Simulator</div>
-    <p style="font-size:0.72rem;color:var(--muted);margin-bottom:12px">Runs the educational Python engine (PagedAttention blocks + continuous batching). Connect API for step-by-step traces.</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-      <input id="sim-prompt" value="Explain PagedAttention" style="flex:1;min-width:200px;background:var(--s3);border:1px solid var(--border2);color:var(--text);padding:8px 10px;border-radius:6px;font-family:var(--mono);font-size:0.7rem" />
-      <input id="sim-tokens" type="number" value="12" min="1" max="64" style="width:70px;background:var(--s3);border:1px solid var(--border2);color:var(--text);padding:8px;border-radius:6px;font-family:var(--mono);font-size:0.7rem" title="max_tokens" />
-      <button onclick="runSim()" style="background:var(--gpu);color:#000;border:none;padding:8px 14px;border-radius:6px;font-weight:700;font-size:0.7rem;cursor:pointer">▶ Run Sim</button>
-      <button onclick="calcBudget()" style="background:var(--kv2);color:#fff;border:none;padding:8px 14px;border-radius:6px;font-weight:700;font-size:0.7rem;cursor:pointer">KV Budget</button>
+  <!-- LEFT: architecture rail + live metrics (mounted by architect-panel.js) -->
+  <aside id="gb-rail" class="gb-rail" aria-label="Architecture and metrics"></aside>
+
+  <!-- CENTER: honest engine trace replay -->
+  <section class="gb-center" aria-label="Inference pipeline glass-box">
+    <div class="gb-center-head">
+      <h2>Serving pipeline · engine trace replay</h2>
+      <span id="gbSourceBadge" class="gb-source-badge">awaiting run</span>
     </div>
-    <pre id="sim-out" class="codeblock" style="margin:0;max-height:180px;overflow:auto;font-size:0.62rem">Click Run Sim — uses API at <span id="api-url">...</span></pre>
-  </div>
+    <div id="gbPipeline" class="gb-pipeline" aria-live="polite"></div>
+    <div class="gb-gate" id="gbGate">
+      Schedule → KV cache → Decode → Sample → Finish. Replay maps real
+      <code>steps[].trace</code> events from <code>POST /api/simulate</code>.
+    </div>
+    <div id="gbEventLog" class="gb-event-log" aria-live="polite">
+      <div class="muted" style="font-style:italic">No trace yet — run a simulation to replay engine phases.</div>
+    </div>
+    <div id="gbOpsStrip" class="gb-ops-strip">
+      <span><strong>steps</strong> —</span>
+      <span><strong>tokens</strong> —</span>
+      <span><strong>util*</strong> —</span>
+      <span><strong>queues</strong> —</span>
+      <span><strong>latency</strong> n/a</span>
+    </div>
+    <p class="gb-honest-note">* <code>gpu_utilization_pct</code> is a scheduler heuristic (<code>35 + running×12</code>), not a measured GPU read. This is a pure-Python teaching engine — no CUDA, no wall-clock latency.</p>
+  </section>
+
+  <!-- RIGHT: product UX -->
+  <aside class="gb-product" aria-label="Inference simulator">
+    <p class="gb-guided">
+      <strong>1.</strong> Run a simulation → <strong>2.</strong> watch engine phases replay in the center →
+      <strong>3.</strong> size a KV budget or swap a LoRA adapter.
+    </p>
+
+    <section class="gb-panel">
+      <h3>Run engine simulation</h3>
+      <p class="gb-hint">POST <code>/api/simulate</code> at <span id="api-url">…</span></p>
+      <input id="sim-prompt" value="Explain PagedAttention" placeholder="prompt" />
+      <div class="gb-row">
+        <input id="sim-tokens" type="number" value="12" min="1" max="64" title="max_tokens" />
+        <button onclick="runSim()" class="gb-btn gb-btn--gpu">▶ Run Sim</button>
+      </div>
+      <pre id="sim-out" class="gb-out">Click Run Sim to replay the engine trace.</pre>
+    </section>
+
+    <section class="gb-panel">
+      <h3>KV cache budget</h3>
+      <p class="gb-hint">POST <code>/api/memory/budget</code> — Llama-3 8B, H100 80GB</p>
+      <button onclick="calcBudget()" class="gb-btn gb-btn--kv">Compute KV budget</button>
+      <pre id="budget-out" class="gb-out">num_gpu_blocks &amp; max concurrent tokens.</pre>
+    </section>
+
+    <details class="gb-panel">
+      <summary>Multi-LoRA serving (ADR-022)</summary>
+      <p class="gb-hint">POST <code>/v1/chat/completions</code> — hot-swap adapter on shared base</p>
+      <button onclick="swapAdapter()" class="gb-btn gb-btn--tensor">Route triage → adapter</button>
+      <pre id="adapter-out" class="gb-out">Shows adapter_swapped + usage tokens.</pre>
+    </details>
+  </aside>
+
+</div>
+</div>
+
+<!-- ══════════════════ ARCHITECTURE ══════════════════ -->
+<div id="view-arch" class="view">
+<div class="arch-wrap">
 
   <!-- L0: Client / API -->
   <div class="sec-bar"><div class="sec-line"></div><div class="sec-label" style="color:var(--api)">● API Entrypoint</div><div class="sec-line"></div></div>
@@ -1030,7 +1212,7 @@ num_blocks = avail // (block_size × kv_size)<br><br>
 
 </div>
 
-<script src="config.js"></script>
+<script src="glassbox.js?v=1"></script>
 <script>
 function sw(id, btn) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('on'));
@@ -1040,13 +1222,15 @@ function sw(id, btn) {
 }
 
 const API = (typeof VLLM_LAB_API !== 'undefined') ? VLLM_LAB_API : '';
-document.getElementById('api-url').textContent = API || '(local — start API on :8000)';
+const apiUrlEl = document.getElementById('api-url');
+if (apiUrlEl) apiUrlEl.textContent = API || '(local — start API on :8000)';
 
 async function runSim() {
   const out = document.getElementById('sim-out');
   const prompt = document.getElementById('sim-prompt').value;
   const max_tokens = parseInt(document.getElementById('sim-tokens').value, 10);
-  out.textContent = 'Running...';
+  out.textContent = 'Running…';
+  if (window.GlassBox) window.GlassBox.setRunning();
   try {
     const base = API || 'http://localhost:8000';
     const res = await fetch(base + '/api/simulate', {
@@ -1055,19 +1239,20 @@ async function runSim() {
       body: JSON.stringify({ prompt, max_tokens }),
     });
     const data = await res.json();
+    if (window.GlassBox) window.GlassBox.onSimResult(data);
     const lines = data.steps.map(s =>
       `step ${s.step}: util=${s.gpu_utilization_pct}% queues=${JSON.stringify(s.queues)} tokens=${JSON.stringify(s.generated_tokens)}`
     );
-    lines.push('', 'prefix_cache:', JSON.stringify(data.snapshot.queues.prefix_cache, null, 2));
     out.textContent = lines.join('\n');
   } catch (e) {
-    out.textContent = 'API error: ' + e.message + '\n\nStart API: cd vllm-architecture-lab && pip install -e . && uvicorn backend.app.main:app --reload';
+    out.textContent = 'API error: ' + e.message + '\n\nStart API: uvicorn backend.app.main:app --reload';
+    if (window.GlassBox) window.GlassBox.onError(e.message);
   }
 }
 
 async function calcBudget() {
-  const out = document.getElementById('sim-out');
-  out.textContent = 'Calculating...';
+  const out = document.getElementById('budget-out');
+  out.textContent = 'Calculating…';
   try {
     const base = API || 'http://localhost:8000';
     const res = await fetch(base + '/api/memory/budget', {
@@ -1076,7 +1261,34 @@ async function calcBudget() {
       body: JSON.stringify({ model: 'llama-3-8b', gpu_memory_gb: 80, model_weights_gb: 16, quantization: null }),
     });
     const data = await res.json();
-    out.textContent = JSON.stringify(data, null, 2);
+    out.textContent =
+      `num_gpu_blocks: ${data.num_gpu_blocks}\n` +
+      `max concurrent tokens: ${data.max_concurrent_tokens}\n` +
+      `KV budget: ${data.kv_budget_gb} GB\n` +
+      `block_size: ${data.block_size}`;
+  } catch (e) {
+    out.textContent = 'API error: ' + e.message;
+  }
+}
+
+async function swapAdapter() {
+  const out = document.getElementById('adapter-out');
+  out.textContent = 'Routing…';
+  try {
+    const base = API || 'http://localhost:8000';
+    const res = await fetch(base + '/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'domainforge-triage-v0',
+        messages: [{ role: 'user', content: 'I forgot my password and cannot log in' }],
+      }),
+    });
+    const data = await res.json();
+    out.textContent =
+      `model: ${data.model}\n` +
+      `adapter_swapped: ${data.adapter_swapped}\n` +
+      `usage: ${JSON.stringify(data.usage)}`;
   } catch (e) {
     out.textContent = 'API error: ' + e.message;
   }

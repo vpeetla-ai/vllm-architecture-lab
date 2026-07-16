@@ -1,0 +1,42 @@
+name: Deploy Production
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "demo/**"
+      - "vercel.json"
+      - ".github/workflows/deploy.yml"
+
+concurrency:
+  group: vllm-architecture-lab-ui-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-ui:
+    name: Deploy UI (Vercel)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Deploy to Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          if [ -z "${VERCEL_TOKEN}" ] || [ -z "${VERCEL_ORG_ID}" ] || [ -z "${VERCEL_PROJECT_ID}" ]; then
+            echo "::warning::VERCEL_TOKEN / VERCEL_ORG_ID / VERCEL_PROJECT_ID not fully configured"
+            echo "Manual fallback: npx vercel link --project vllm-architecture-lab && npx vercel --prod"
+            echo "Canonical hostname: https://vllm-architecture-lab.vercel.app"
+            exit 0
+          fi
+          npx vercel@latest deploy --prod --token "${VERCEL_TOKEN}" --yes

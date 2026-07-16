@@ -3,7 +3,7 @@ window.ARCHITECT_CONFIG = {
   // Product already has Architecture / KV / Batching tabs — don't inject a second Architecture workbench tab.
   skipWorkbenchTabs: true,
   tagline:
-    "Educational vLLM inference simulator — PagedAttention block allocator, continuous batching scheduler, and KV memory budget formulas for principal-level interviews.",
+    "Glass-box vLLM inference lab — replay the real engine trace (schedule → KV cache → decode → sample → finish) from a pure-Python PagedAttention + continuous-batching simulator.",
   metricsUrl: window.VLLM_LAB_API + "/v1/ops/metrics",
   metricsPath: "/v1/ops/metrics",
   metricLabels: { runs: "Engine steps", entities: "KV blocks allocated", latency: "P95 latency" },

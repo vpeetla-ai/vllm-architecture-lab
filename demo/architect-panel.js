@@ -1,6 +1,4 @@
-/** Tabbed workbench for static demos — product first, architecture second.
- * Principal UX: section jump links + metrics Loading/Live/Failed+Retry.
- */
+/** Compact architecture rail for #gb-rail (glass-box left column). */
 (function () {
   const cfg = window.ARCHITECT_CONFIG;
   if (!cfg) return;
@@ -12,254 +10,107 @@
     return n;
   }
 
-  function renderLayers(root) {
-    const stack = el("div", "arch-layers");
-    (cfg.layers || []).forEach((layer) => {
-      const row = el("div", "arch-layer");
-      row.appendChild(el("span", "arch-tier", layer.tier));
-      const mid = el("div", "arch-mid");
-      mid.appendChild(el("strong", "ao-layer-name", layer.name));
-      mid.appendChild(el("span", "muted", layer.role));
-      row.appendChild(mid);
-      const chips = el("div", "arch-chips");
-      (layer.components || []).forEach((c) => chips.appendChild(el("span", "arch-chip", c)));
-      row.appendChild(chips);
-      stack.appendChild(row);
-    });
-    root.appendChild(stack);
-  }
-
-  function renderTradeoffs(root) {
-    const grid = el("div", "arch-tradeoffs");
-    (cfg.tradeoffs || []).forEach((t) => {
-      const card = el("div", "arch-tradeoff");
-      card.innerHTML =
-        '<strong class="ao-trade-title">' +
-        t.decision +
-        '</strong><p><span class="gain">Gain</span> — ' +
-        t.gain +
-        "</p><p><span class=\"trade\">Trade</span> — " +
-        t.trade +
-        "</p>";
-      grid.appendChild(card);
-    });
-    root.appendChild(grid);
-  }
-
-  function renderDocLinks(root) {
-    const links = [].concat(cfg.adrLinks || [], cfg.docsLinks || []);
-    if (!links.length) return;
-    const wrap = el("div", "");
-    wrap.id = "ao-adrs";
-    wrap.appendChild(el("h2", "ao-title", "Architecture record"));
-    const ul = el("ul", "arch-doc-links");
-    links.forEach((link) => {
-      const li = document.createElement("li");
-      const a = document.createElement("a");
-      a.href = link.href;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      a.textContent = link.title + " →";
-      li.appendChild(a);
-      ul.appendChild(li);
-    });
-    wrap.appendChild(ul);
-    root.appendChild(wrap);
+  function normalize(data) {
+    return {
+      total_runs: data.total_runs ?? data.sample_size ?? data.total ?? 0,
+      success_rate_pct: data.success_rate_pct ?? 100 - (data.failure_rate_pct || 0),
+      p95_latency_ms: data.p95_latency_ms ?? data.p95_ms ?? null,
+      active_entities: data.active_entities ?? 0,
+    };
   }
 
   function renderMetrics(root, data) {
     root.innerHTML = "";
     const labels = cfg.metricLabels || {};
-    const grid = el("div", "arch-metrics");
-    const cards = [
+    const grid = el("div", "gb-metrics");
+    [
       [labels.runs || "Runs", data.total_runs],
-      ["Success rate", data.success_rate_pct + "%"],
+      ["Success", data.success_rate_pct + "%"],
       [labels.latency || "P95", data.p95_latency_ms != null ? data.p95_latency_ms + "ms" : "—"],
       [labels.entities || "Entities", data.active_entities],
-    ];
-    cards.forEach(([label, value]) => {
-      const card = el("div", "arch-metric");
+    ].forEach(([label, value]) => {
+      const card = el("div", "gb-metric");
       card.innerHTML = "<span>" + label + "</span><strong>" + value + "</strong>";
       grid.appendChild(card);
     });
     root.appendChild(grid);
-    root.appendChild(
-      el(
-        "p",
-        "muted api-hint",
-        "Live from <code>" + (cfg.metricsPath || "/ops/metrics") + "</code>"
-      )
-    );
   }
 
-  function renderMetricsFailed(root, retry) {
+  function renderFailed(root, retry) {
     root.innerHTML = "";
-    const wrap = el("div", "ao-metrics-failed");
-    wrap.appendChild(
-      el("p", "muted", "Metrics unavailable — API may be waking from idle (~30s on free tier).")
-    );
-    const btn = el("button", "secondary", "Retry");
+    const wrap = el("div", "gb-metrics-failed");
+    wrap.appendChild(el("p", "muted", "API waking (~30s)…"));
+    const btn = el("button", "gb-retry", "Retry");
     btn.type = "button";
     btn.addEventListener("click", retry);
     wrap.appendChild(btn);
     root.appendChild(wrap);
   }
 
-  function normalize(data) {
-    return {
-      total_runs: data.total_runs ?? data.sample_size ?? data.total ?? 0,
-      success_rate_pct: data.success_rate_pct ?? 100 - (data.failure_rate_pct || 0),
-      p95_latency_ms: data.p95_latency_ms ?? data.p95_node_latency_ms ?? data.p95_ms ?? null,
-      active_entities: data.active_entities ?? data.invited_users ?? 0,
-    };
-  }
+  function buildRail() {
+    const root = el("div", "gb-rail-inner");
 
-  function buildArchitecturePanel() {
-    const panel = el("section", "panel architect-panel workbench-arch-panel");
-    panel.hidden = true;
+    root.appendChild(el("p", "gb-rail-lede", cfg.tagline || ""));
 
-    const hasDocs = (cfg.adrLinks || []).length + (cfg.docsLinks || []).length > 0;
-    const jump = el("nav", "ao-jump");
-    jump.setAttribute("aria-label", "Architecture sections");
-    [
-      ["#ao-stack", "Stack"],
-      ["#ao-tradeoffs", "Tradeoffs"],
-      ...(hasDocs ? [["#ao-adrs", "ADRs"]] : []),
-      ["#ao-metrics", "Metrics"],
-    ].forEach(([href, label]) => {
-      const a = document.createElement("a");
-      a.href = href;
-      a.textContent = label;
-      jump.appendChild(a);
+    root.appendChild(el("h2", "gb-rail-title", "Stack"));
+    const stack = el("div", "gb-stack");
+    (cfg.layers || []).forEach((layer) => {
+      const row = el("div", "gb-stack-layer");
+      row.appendChild(el("div", "gb-stack-tier", layer.tier));
+      row.appendChild(el("div", "gb-stack-name", layer.name));
+      row.appendChild(el("div", "gb-stack-role", layer.role));
+      stack.appendChild(row);
     });
-    panel.appendChild(jump);
+    root.appendChild(stack);
 
-    const stack = el("div", "");
-    stack.id = "ao-stack";
-    stack.appendChild(el("p", "eyebrow", "Eagle-eye architecture"));
-    stack.appendChild(el("h2", "ao-title", "How the system is wired"));
-    stack.appendChild(el("p", "lede", cfg.tagline));
-    renderLayers(stack);
-    panel.appendChild(stack);
+    root.appendChild(el("h2", "gb-rail-title", "Live metrics"));
+    const slot = el("div", "gb-metrics-slot");
+    slot.appendChild(el("p", "muted", "Loading…"));
+    root.appendChild(slot);
 
-    const trade = el("div", "");
-    trade.id = "ao-tradeoffs";
-    trade.appendChild(el("h2", "ao-title", "Principal tradeoffs"));
-    renderTradeoffs(trade);
-    panel.appendChild(trade);
-
-    renderDocLinks(panel);
-
-    const metricsWrap = el("div", "");
-    metricsWrap.id = "ao-metrics";
-    metricsWrap.appendChild(el("h2", "ao-title", "Production metrics"));
-    const metricsSlot = el("div", "arch-metrics-slot");
-    metricsSlot.appendChild(el("p", "muted", "Loading live metrics…"));
-    metricsWrap.appendChild(metricsSlot);
-    panel.appendChild(metricsWrap);
-
-    function loadMetrics() {
-      if (!cfg.metricsUrl) {
-        metricsSlot.innerHTML = "";
-        metricsSlot.appendChild(el("p", "muted", "No metrics URL configured."));
-        return;
-      }
-      metricsSlot.innerHTML = "";
-      metricsSlot.appendChild(el("p", "muted", "Loading live metrics…"));
+    function load() {
+      if (!cfg.metricsUrl) return;
+      slot.innerHTML = "";
+      slot.appendChild(el("p", "muted", "Loading…"));
       fetch(cfg.metricsUrl, { cache: "no-store" })
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-        .then((data) => renderMetrics(metricsSlot, normalize(data)))
-        .catch(() => renderMetricsFailed(metricsSlot, loadMetrics));
+        .then((data) => renderMetrics(slot, normalize(data)))
+        .catch(() => renderFailed(slot, load));
     }
-    loadMetrics();
+    load();
+    window.VllmRefreshMetrics = load;
 
-    return panel;
+    root.appendChild(el("h2", "gb-rail-title", "Tradeoffs"));
+    (cfg.tradeoffs || []).slice(0, 3).forEach((t) => {
+      const card = el("div", "gb-tradeoff");
+      card.innerHTML = "<strong>" + t.decision + "</strong><p>" + t.gain + "</p>";
+      root.appendChild(card);
+    });
+
+    const links = [].concat(cfg.adrLinks || [], cfg.docsLinks || []).slice(0, 4);
+    if (links.length) {
+      root.appendChild(el("h2", "gb-rail-title", "ADRs & docs"));
+      const ul = el("ul", "gb-adr-links");
+      links.forEach((link) => {
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        a.href = link.href;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = link.title + " →";
+        li.appendChild(a);
+        ul.appendChild(li);
+      });
+      root.appendChild(ul);
+    }
+    return root;
   }
 
   function mount() {
-    // vLLM already has product tabs (Live simulator / KV / …) — skip duplicate workbench tabs.
-    if (cfg.skipWorkbenchTabs) {
-      const host =
-        document.getElementById("view-arch") ||
-        document.getElementById("workbench-product") ||
-        document.body;
-      const archPanel = buildArchitecturePanel();
-      archPanel.hidden = false;
-      archPanel.style.marginTop = "24px";
-      host.appendChild(archPanel);
-      return;
-    }
-
-    const productRoot = document.getElementById("workbench-product");
-    const main =
-      document.querySelector("main.shell, main.app-main, main") ||
-      document.querySelector(".app-main, .shell") ||
-      (productRoot && productRoot.parentElement) ||
-      document.body;
-    if (!main) return;
-
-    const hero =
-      main.querySelector(".page-hero") ||
-      main.querySelector(".hdr") ||
-      main.querySelector(".app-header");
-    const tabs = el("nav", "workbench-tabs");
-    tabs.setAttribute("role", "tablist");
-
-    const btnProduct = el("button", "workbench-tab is-active", "");
-    btnProduct.type = "button";
-    btnProduct.innerHTML =
-      '<span class="workbench-tab__label">Live product</span><span class="workbench-tab__hint">Run the demo</span>';
-
-    const btnArch = el("button", "workbench-tab", "");
-    btnArch.type = "button";
-    btnArch.innerHTML =
-      '<span class="workbench-tab__label">Architecture & metrics</span><span class="workbench-tab__hint">Stack, tradeoffs, SLOs</span>';
-
-    tabs.appendChild(btnProduct);
-    tabs.appendChild(btnArch);
-
-    const archPanel = buildArchitecturePanel();
-
-    if (productRoot) {
-      if (hero && hero.nextSibling) main.insertBefore(tabs, hero.nextSibling);
-      else main.insertBefore(tabs, main.firstChild);
-      main.appendChild(archPanel);
-
-      function show(tab) {
-        const isProduct = tab === "product";
-        productRoot.hidden = !isProduct;
-        archPanel.hidden = isProduct;
-        btnProduct.classList.toggle("is-active", isProduct);
-        btnArch.classList.toggle("is-active", !isProduct);
-      }
-      btnProduct.addEventListener("click", () => show("product"));
-      btnArch.addEventListener("click", () => show("architecture"));
-      show("product");
-      return;
-    }
-
-    const legacyRoot = document.getElementById("architect-root");
-    if (legacyRoot) legacyRoot.remove();
-    if (hero) hero.parentNode.insertBefore(tabs, hero.nextSibling);
-    main.appendChild(archPanel);
-
-    const panels = Array.from(main.querySelectorAll("section.panel, .live-panel, .command-center, #view-loop"));
-    const productWrap = el("div", "workbench-product-legacy");
-    panels.forEach((p) => {
-      if (p !== archPanel && !p.closest(".workbench-arch-panel")) productWrap.appendChild(p);
-    });
-    tabs.after(productWrap);
-
-    function show(tab) {
-      const isProduct = tab === "product";
-      productWrap.hidden = !isProduct;
-      archPanel.hidden = isProduct;
-      btnProduct.classList.toggle("is-active", isProduct);
-      btnArch.classList.toggle("is-active", !isProduct);
-    }
-    btnProduct.addEventListener("click", () => show("product"));
-    btnArch.addEventListener("click", () => show("architecture"));
-    show("product");
+    const rail = document.getElementById("gb-rail");
+    if (!rail) return;
+    rail.innerHTML = "";
+    rail.appendChild(buildRail());
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount);
