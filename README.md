@@ -108,6 +108,7 @@ The default **Glass-box** tab is a three-column workbench: the architecture stac
 | FastAPI + OpenAI stub | **Implemented** | `/v1/completions`, `/api/simulate` |
 | Educational multi-LoRA Path B | **Implemented** | `/v1/chat/completions` + `/v1/adapters` (ADR-022 — not CUDA) |
 | Glass-box workbench UX | **Implemented** | 3-column: architecture rail + live SLOs · honest engine-trace pipeline replay · simulator product |
+| Ops / observability honesty | **Implemented** | `/health` + `/v1/ops/metrics` + `/v1/observability/status` — pure-Python engine; `p95` null; no CUDA |
 | Interactive HTML explorer | **Implemented** | Architecture / KV / Batching / Memory / FDE tabs |
 | PagedAttention CUDA kernel | **Conceptual** | documented, not implemented |
 | FlashAttention / real model | **Conceptual** | use upstream vLLM for prod |
@@ -120,7 +121,9 @@ The default **Glass-box** tab is a three-column workbench: the architecture stac
 
 | Endpoint | Purpose |
 |----------|---------|
-| `GET /health` | Health check |
+| `GET /health` | Health + honesty flags (`engine`, `wall_clock_latency`, `gpu_backed`) |
+| `GET /v1/ops/metrics` | Queue/KV snapshot; `p95_latency_ms` always null |
+| `GET /v1/observability/status` | Trace + ops exporter planes; Path B / no CUDA |
 | `POST /api/simulate` | Run full request through engine, return step trace |
 | `POST /api/step` | Single `step()` call |
 | `GET /api/snapshot` | KV blocks + queue state |
