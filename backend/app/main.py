@@ -88,7 +88,43 @@ def _step_to_dict(out: StepOutput) -> dict:
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "service": "vllm-architecture-lab", "version": "0.1.0"}
+    snap = _engine.snapshot()
+    return {
+        "status": "ok",
+        "service": "vllm-architecture-lab",
+        "version": "0.1.0",
+        "engine": "pure_python_simulator",
+        "wall_clock_latency": False,
+        "gpu_backed": False,
+        "adapters_registered": len(ADAPTER_REGISTRY),
+        "step_count": int(snap.get("step_count", 0)),
+    }
+
+
+@app.get("/v1/observability/status")
+def observability_status() -> dict:
+    return {
+        "source_of_truth": "In-process educational LLMEngine snapshot (/api/snapshot)",
+        "exporters": [
+            {
+                "name": "EngineTrace",
+                "state": "live",
+                "detail": "steps[].trace events from POST /api/simulate — not SSE",
+            },
+            {
+                "name": "OpsMetrics",
+                "state": "live",
+                "detail": "Queue + KV block counts; p95_latency_ms always null (no wall clock)",
+            },
+        ],
+        "planes": {
+            "engine": "pure_python_simulator",
+            "gpu_utilization_pct": "scheduler_heuristic_35_plus_running_times_12",
+            "multi_lora_path_b": True,
+            "cuda_kernels": False,
+        },
+        "recommendation": "Use for teaching PagedAttention/continuous batching; use upstream vLLM for production serving.",
+    }
 
 
 @app.get("/v1/ops/metrics")
@@ -106,7 +142,20 @@ def ops_metrics() -> dict:
         "p95_latency_ms": None,
         "active_entities": int(allocated),
         "slo": {"target_uptime_pct": 99.5, "success_target_pct": 95.0},
-        "extra": {"queues": snap.get("queues"), "kv_blocks": kv},
+        "extra": {
+            "queues": snap.get("queues"),
+            "kv_blocks": kv,
+            "engine": "pure_python_simulator",
+            "wall_clock_latency": False,
+            "gpu_backed": False,
+            "gpu_utilization_pct": "heuristic_not_nvml",
+            "multi_lora": {
+                "path": "educational_b",
+                "adapters": [a["id"] for a in ADAPTER_REGISTRY],
+                "cuda_kernels": False,
+            },
+            "openai_compat_stubs": ["/v1/completions", "/v1/chat/completions"],
+        },
     }
 
 
