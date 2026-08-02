@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Educational reference for vLLM's high-throughput inference design. Maps 1:1 to the interactive demo tabs.
+I’d put this in front of an FDE candidate who can recite “PagedAttention” but can’t size a KV budget. Educational reference for vLLM’s high-throughput design — maps 1:1 to the demo tabs. Teaching drawer, not a production fork.
 
 ## Layer map
 
@@ -23,7 +23,7 @@ We implement **scheduling and memory semantics** in pure Python without CUDA. Th
 
 ### ADR-002: Honest status boundaries
 
-CUDA kernels, real weight loading, and NCCL are **documented conceptually** in the HTML explorer. Production deployments should use upstream vLLM.
+CUDA kernels, real weight loading, and NCCL are **documented conceptually** in the HTML explorer. Production uses upstream vLLM. `GET /v1/observability/status` repeats the same story: pure-Python engine, `p95` null, Path B is educational.
 
 ### ADR-003: OpenAI-compatible API shape
 

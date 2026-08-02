@@ -20,9 +20,9 @@ git clone https://github.com/vpeetla-ai/vpeetla-ai-skills.git
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Org](https://img.shields.io/badge/GitHub-vpeetla--ai-blue)](https://github.com/vpeetla-ai)
 
-**Educational vLLM inference engine** — PagedAttention block allocator, continuous batching scheduler, KV cache budget formulas, and interactive architecture explorer.
+I’d teach *why* vLLM wins on throughput before anyone copies a YAML. This lab is a pure-Python engine: PagedAttention blocks, continuous batching, KV budget math, glass-box replay — Teaching drawer for FDE / Principal interviews.
 
-> Not a production vLLM fork. A **reference lab** for Principal AI Architect / FDE interviews: understand *why* vLLM achieves 3–4× throughput vs static batching.
+> Not a production vLLM fork. No CUDA. Upstream vLLM when you need real kernels.
 
 [▶ Live demo](https://vllm-architecture-lab.vercel.app) · [API](https://vllm-architecture-lab-api.onrender.com/health) · [Architecture tabs](demo/index.html) · [venkat-ai.com/work](https://venkat-ai.com/work)
 
@@ -92,7 +92,7 @@ pytest -q
 
 Open `demo/index.html` locally or deploy to Vercel. Set `demo/config.js` → `VLLM_LAB_API` to your Render API URL for live sim.
 
-The default **Glass-box** tab is a three-column workbench: the architecture stack + live `/v1/ops/metrics` on the left, an honest engine-trace pipeline replay (Schedule → KV cache → Decode → Sample → Finish, mapped from real `steps[].trace` events) in the center, and the simulator/KV-budget/LoRA product on the right. It shows event counts and engine steps only — no invented wall-clock latency, since the engine is pure Python.
+Glass-box default: architecture + live `/v1/ops/metrics` · engine-trace replay from real `steps[].trace` · simulator product. Event counts and steps only — I won’t invent wall-clock latency on a pure-Python engine.
 
 ---
 
