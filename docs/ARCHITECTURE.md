@@ -4,6 +4,54 @@
 
 I’d put this in front of an FDE candidate who can recite “PagedAttention” but can’t size a KV budget. Educational reference for vLLM’s high-throughput design — maps 1:1 to the demo tabs. Teaching drawer, not a production fork.
 
+## Diagram
+
+```mermaid
+flowchart TB
+    subgraph API["backend/app/main.py (FastAPI, pure Python — no CUDA)"]
+        Simulate["POST /api/simulate\nreturns steps[].trace events"]
+        Completions["POST /v1/completions\nPOST /v1/chat/completions\nstub tokens, OpenAI-shaped"]
+        Metrics["GET /v1/ops/metrics"]
+        ObsStatus["GET /v1/observability/status\nrepeats the Path-B honesty story"]
+    end
+
+    subgraph Engine["engine/ — LLMEngine, AsyncLLMEngine"]
+        Sched["scheduler/scheduler.py\nFCFS admit / preempt / swap"]
+        KV["kv_cache/block_manager.py + prefix_cache.py\nBlockSpaceManager"]
+        Sampler["sampling/sampler.py\n(stub — no real weights)"]
+    end
+
+    Simulate --> Sched
+    Sched -- "admit / swap_in / preempt" --> KV
+    KV -- "cache_hit / cache_miss / decode_slot" --> Sched
+    Sched -- "step" --> Sampler
+    Sampler -- "sample / finish" --> Simulate
+    Completions --> Sched
+    Metrics --> Sched
+    Metrics --> KV
+
+    subgraph RealVLLM["What this repo is NOT"]
+        direction TB
+        Note["Real CUDA PagedAttention, FlashAttention, NCCL —\ndocumented conceptually here, never executed.\nReal upstream vLLM serving lives in modelforge-llmops\n(Path A — see vllm_cuda.json receipts)."]
+    end
+
+    Sampler -.-> RealVLLM
+
+    classDef stub fill:#2a2a3d,stroke:#8888aa,color:#e5e5f5,stroke-dasharray: 4 3;
+    class RealVLLM,Note stub;
+```
+
+**Scheduler state machine:**
+
+```mermaid
+stateDiagram-v2
+    [*] --> WAITING
+    WAITING --> RUNNING: blocks available
+    RUNNING --> [*]: complete (finish)
+    RUNNING --> SWAPPED: GPU full (preempt)
+    SWAPPED --> RUNNING: blocks free (swap_in)
+```
+
 ## Layer map
 
 | Layer | vLLM component | This repo |
@@ -40,14 +88,7 @@ kv_per_token = 2 × num_heads × head_dim × dtype_bytes × num_layers
 num_blocks = (gpu_mem × util − weights) / (block_size × kv_per_token)
 ```
 
-See `kv_cache/formulas.py`.
-
-## Scheduler state machine
-
-```text
-WAITING → (blocks available) → RUNNING → (complete) → freed blocks
-RUNNING → (GPU full) → SWAPPED → (blocks free) → RUNNING
-```
+See `kv_cache/formulas.py`. (Scheduler state machine diagram is above, under "Diagram".)
 
 ## Integration with vpeetla-ai stack
 
