@@ -79,7 +79,15 @@ CUDA kernels, real weight loading, and NCCL are **documented conceptually** in t
 
 ### ADR-004: Glass-box demo honesty
 
-The default **Glass-box** tab is a three-column workbench (architecture rail + live `/v1/ops/metrics` · engine-trace pipeline replay · simulator product). The center pipeline replays a five-phase serving path — Schedule → KV cache → Decode → Sample → Finish — by mapping the **real `steps[].trace` events** returned by `POST /api/simulate` (`admit`/`swap_in`/`preempt` → schedule, `cache_hit`/`cache_miss`/`decode_slot` → KV, `step` → decode, `sample` → sample, `finish` → finish). It surfaces event counts, engine steps, tokens, and queue depth only. It deliberately shows **no wall-clock latency** and labels `gpu_utilization_pct` as a scheduler heuristic (`35 + running×12`), because this is a pure-Python teaching engine, not a GPU-backed server.
+The default **Glass-box** tab is a three-column workbench (architecture rail + live `/v1/ops/metrics` · engine-trace pipeline replay · simulator product). The center pipeline replays a five-phase serving path — Schedule → KV cache → Decode → Sample → Finish — driven by the **real `steps[].trace` events** from `POST /api/simulate`:
+
+- `admit` / `swap_in` / `preempt` → schedule
+- `cache_hit` / `cache_miss` / `decode_slot` → KV
+- `step` → decode
+- `sample` → sample
+- `finish` → finish
+
+It surfaces event counts, engine steps, tokens, and queue depth only. It deliberately shows **no wall-clock latency** and labels `gpu_utilization_pct` as a scheduler heuristic (`35 + running×12`) — this is a pure-Python teaching engine, not a GPU-backed server.
 
 ## KV cache formula
 
